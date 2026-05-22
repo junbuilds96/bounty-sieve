@@ -7,6 +7,12 @@ from collections import Counter
 from pathlib import Path
 
 from bounty_sieve.fixtures import load_fixture_opportunities
+from bounty_sieve.github_importer import (
+    GitHubImportError,
+    emit_warnings,
+    import_github_issue_url,
+    import_url_list,
+)
 from bounty_sieve.io import read_json, write_json, write_text
 from bounty_sieve.opportunities import OpportunityValidationError, load_json_opportunities
 from bounty_sieve.reporting import render_report
@@ -21,8 +27,17 @@ def main(argv: list[str] | None = None) -> int:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     discover_parser = subparsers.add_parser("discover", help="Discover opportunities.")
-    discover_parser.add_argument("--source", choices=["fixture", "json"], required=True)
+    discover_parser.add_argument(
+        "--source",
+        choices=["fixture", "json", "github-issue", "url-list"],
+        required=True,
+        help=(
+            "Discovery source. fixture/json are local only; github-issue and url-list "
+            "perform explicit read-only public URL fetches."
+        ),
+    )
     discover_parser.add_argument("--input", help="Path to a user-provided JSON opportunity file.")
+    discover_parser.add_argument("--url", help="Public GitHub issue URL for --source github-issue.")
     discover_parser.add_argument("--out", required=True)
 
     score_parser = subparsers.add_parser("score", help="Score discovered opportunities.")
@@ -41,15 +56,38 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "discover":
         if args.source == "fixture":
             if args.input:
-                discover_parser.error("--input can only be used with --source json")
+                discover_parser.error("--input can only be used with --source json or --source url-list")
+            if args.url:
+                discover_parser.error("--url can only be used with --source github-issue")
             opportunities = load_fixture_opportunities()
-        else:
+        elif args.source == "json":
             if not args.input:
                 discover_parser.error("--source json requires --input PATH")
+            if args.url:
+                discover_parser.error("--url can only be used with --source github-issue")
             try:
                 opportunities = load_json_opportunities(args.input)
             except OpportunityValidationError as exc:
                 discover_parser.error(str(exc))
+        elif args.source == "github-issue":
+            if args.input:
+                discover_parser.error("--input cannot be used with --source github-issue")
+            if not args.url:
+                discover_parser.error("--source github-issue requires --url URL")
+            try:
+                opportunities = [import_github_issue_url(args.url)]
+            except GitHubImportError as exc:
+                discover_parser.error(str(exc))
+        else:
+            if not args.input:
+                discover_parser.error("--source url-list requires --input PATH")
+            if args.url:
+                discover_parser.error("--url can only be used with --source github-issue")
+            try:
+                opportunities, warnings = import_url_list(args.input)
+            except OSError as exc:
+                discover_parser.error(f"could not read input file {args.input}: {exc}")
+            emit_warnings(warnings)
         write_json(args.out, opportunities)
         return 0
 

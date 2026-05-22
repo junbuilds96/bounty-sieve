@@ -6,6 +6,8 @@ import sys
 import tomllib
 from pathlib import Path
 
+import bounty_sieve
+
 
 def run_cli(*args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
@@ -33,6 +35,8 @@ def test_package_metadata_uses_bounty_sieve_names() -> None:
     pyproject = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
 
     assert pyproject["project"]["name"] == "bounty-sieve"
+    assert pyproject["project"]["version"] == "0.3.0"
+    assert bounty_sieve.__version__ == "0.3.0"
     assert pyproject["project"]["license"] == {"file": "LICENSE"}
     assert pyproject["project"]["scripts"] == {
         "bounty-sieve": "bounty_sieve.__main__:main"
@@ -48,6 +52,16 @@ def test_cli_help_lists_offline_demo_commands() -> None:
     assert "score" in result.stdout
     assert "report" in result.stdout
     assert "demo" in result.stdout
+
+
+def test_discover_help_lists_agent_intake_sources() -> None:
+    result = run_cli_unchecked("discover", "--help")
+
+    assert result.returncode == 0
+    assert "github-issue" in result.stdout
+    assert "url-list" in result.stdout
+    assert "read-only public" in result.stdout
+    assert "URL fetches" in result.stdout
 
 
 def test_cli_rejects_invalid_fixture_source(tmp_path: Path) -> None:

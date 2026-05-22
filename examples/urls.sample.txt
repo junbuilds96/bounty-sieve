@@ -1,0 +1,4 @@
+# Public GitHub issue URLs only. Unsupported URLs are skipped with warnings.
+https://github.com/python/cpython/issues/12345
+https://github.com/pallets/flask/issues/5678
+https://example.com/unsupported-bounty-page
