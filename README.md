@@ -1,5 +1,7 @@
 # Bounty Sieve
 
+[简体中文](README_CN.md)
+
 Bounty Sieve is a small Python CLI for read-only triage of bounty-like open-source opportunities. The current release is an offline demo: it uses bundled fixtures, applies deterministic scoring rules, and writes local JSON and Markdown artifacts for human review.
 
 The project is useful as a transparent baseline for evaluating opportunity quality and safety signals before doing any manual work in a browser.
