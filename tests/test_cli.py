@@ -3,12 +3,13 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 
 
 def run_cli(*args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        [sys.executable, "-m", "public_bounty_radar", *args],
+        [sys.executable, "-m", "bounty_sieve", *args],
         check=True,
         text=True,
         capture_output=True,
@@ -17,6 +18,15 @@ def run_cli(*args: str) -> subprocess.CompletedProcess[str]:
 
 def read_json(path: Path):
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def test_package_metadata_uses_bounty_sieve_names() -> None:
+    pyproject = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
+
+    assert pyproject["project"]["name"] == "bounty-sieve"
+    assert pyproject["project"]["scripts"] == {
+        "bounty-sieve": "bounty_sieve.__main__:main"
+    }
 
 
 def test_fixture_discovery_writes_realistic_fixture_set(tmp_path: Path) -> None:
@@ -106,4 +116,4 @@ def test_demo_outputs_all_artifacts(tmp_path: Path) -> None:
     assert report.exists()
     assert len(read_json(discovered)) == 7
     assert len(read_json(scored)) == 7
-    assert "Public Bounty Radar Report" in report.read_text(encoding="utf-8")
+    assert "Bounty Sieve Report" in report.read_text(encoding="utf-8")

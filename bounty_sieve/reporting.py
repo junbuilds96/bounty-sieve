@@ -26,7 +26,7 @@ def render_report(scored_opportunities: list[dict[str, Any]]) -> str:
     ]
 
     lines = [
-        "# Public Bounty Radar Report",
+        "# Bounty Sieve Report",
         "",
         "## Safety Boundary",
         "",

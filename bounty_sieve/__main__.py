@@ -1,20 +1,20 @@
-"""Command line entrypoint for python -m public_bounty_radar."""
+"""Command line entrypoint for python -m bounty_sieve."""
 
 from __future__ import annotations
 
 import argparse
 from pathlib import Path
 
-from public_bounty_radar.fixtures import load_fixture_opportunities
-from public_bounty_radar.io import read_json, write_json, write_text
-from public_bounty_radar.reporting import render_report
-from public_bounty_radar.scoring import score_opportunities
+from bounty_sieve.fixtures import load_fixture_opportunities
+from bounty_sieve.io import read_json, write_json, write_text
+from bounty_sieve.reporting import render_report
+from bounty_sieve.scoring import score_opportunities
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        prog="public_bounty_radar",
-        description="Read-only offline public bounty discovery and risk triage.",
+        prog="bounty-sieve",
+        description="Read-only offline bounty opportunity triage and safety filtering.",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 

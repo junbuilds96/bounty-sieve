@@ -1,10 +1,10 @@
-# public-bounty-radar-mvp
+# Bounty Sieve
 
-Independent public MVP for read-only bounty/opportunity discovery and risk triage.
+Read-only bounty opportunity triage and safety filtering for open-source work.
 
-`public_bounty_radar` is an offline-demo friendly Python package and CLI for
-triaging public bounty-like opportunities. The first version intentionally uses a
-bundled fixture source only, so it does not need network access or credentials.
+`bounty_sieve` is an offline-demo friendly Python package and CLI for triaging
+public bounty-like opportunities. The first version intentionally uses a bundled
+fixture source only, so it does not need network access or credentials.
 
 ## Safety boundary
 
@@ -22,7 +22,7 @@ python -m pip install -e ".[test]"
 The package can also run directly from the repo:
 
 ```bash
-python -m public_bounty_radar --help
+python -m bounty_sieve --help
 ```
 
 ## Usage
@@ -30,25 +30,31 @@ python -m public_bounty_radar --help
 Discover bundled fixture opportunities:
 
 ```bash
-python -m public_bounty_radar discover --source fixture --out out/discovered.json
+python -m bounty_sieve discover --source fixture --out out/discovered.json
 ```
 
 Score discovered opportunities:
 
 ```bash
-python -m public_bounty_radar score out/discovered.json --out out/scored.json
+python -m bounty_sieve score out/discovered.json --out out/scored.json
 ```
 
 Render a Markdown report:
 
 ```bash
-python -m public_bounty_radar report out/scored.json --out out/report.md
+python -m bounty_sieve report out/scored.json --out out/report.md
 ```
 
 Run the full offline demo:
 
 ```bash
-python -m public_bounty_radar demo --out out/demo
+python -m bounty_sieve demo --out out/demo
+```
+
+After installation, the console script is also available:
+
+```bash
+bounty-sieve demo --out out/demo
 ```
 
 The demo writes:
