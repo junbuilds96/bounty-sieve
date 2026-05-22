@@ -1,28 +1,42 @@
 # Bounty Sieve
 
-Read-only bounty opportunity triage and safety filtering for open-source work.
+Bounty Sieve is a small Python CLI for read-only triage of bounty-like open-source opportunities. The current release is an offline demo: it uses bundled fixtures, applies deterministic scoring rules, and writes local JSON and Markdown artifacts for human review.
 
-`bounty_sieve` is an offline-demo friendly Python package and CLI for triaging
-public bounty-like opportunities. The first version intentionally uses a bundled
-fixture source only, so it does not need network access or credentials.
+The project is useful as a transparent baseline for evaluating opportunity quality and safety signals before doing any manual work in a browser.
 
-## Safety boundary
+## Safety Boundary
 
-This MVP is read-only. It does not clone repositories, open pull requests,
-connect wallets, use credentials, star repositories, contact maintainers, or
-attempt prompt/private-data exfiltration. It produces local JSON and Markdown
-artifacts for human review.
+This release is intentionally read-only and offline. It does not:
 
-## Install for development
+- clone repositories or inspect local project code
+- open pull requests, issues, comments, or other remote actions
+- connect wallets, use credentials, handle secrets, or touch private data
+- star repositories or participate in engagement-gated tasks
+- contact maintainers or bounty posters
+- attempt prompt, policy, credential, or private-instruction exfiltration
+
+Unsafe or manipulative opportunities are rejected even when the advertised reward is high.
+
+## Installation
+
+Use Python 3.11 or newer.
+
+For local development:
 
 ```bash
 python -m pip install -e ".[test]"
 ```
 
-The package can also run directly from the repo:
+Run directly from a checkout:
 
 ```bash
 python -m bounty_sieve --help
+```
+
+After installation, the console script is available:
+
+```bash
+bounty-sieve --help
 ```
 
 ## Usage
@@ -51,32 +65,35 @@ Run the full offline demo:
 python -m bounty_sieve demo --out out/demo
 ```
 
-After installation, the console script is also available:
+The same commands are available through the installed script:
 
 ```bash
 bounty-sieve demo --out out/demo
 ```
 
-The demo writes:
+## Output Artifacts
 
-- `discovered.json`: raw fixture opportunities
-- `scored.json`: deterministic scoring output
-- `report.md`: safety summary, recommendation counts, top opportunities,
-  reject/watch reasons, and next actions
+`demo` writes three files under the selected output directory:
 
-## Fixture coverage
+- `discovered.json`: raw bundled fixture opportunities
+- `scored.json`: deterministic scoring output with recommendation fields
+- `report.md`: Markdown report for manual review
 
-The bundled fixture set includes safe small paid tasks and rejects/watch cases:
+Generated demo output is intentionally ignored by Git.
 
-- Safe documentation quickstart improvement
-- Safe regression test task
-- Prompt exfiltration request
-- Star-gated bounty
-- Unknown token or wallet interaction
-- Duplicate PR swarm risk
-- Vague high-complexity backend task
+## Fixture Coverage
 
-## Scoring model
+The bundled fixture set includes pursue, watch, and reject cases:
+
+- safe documentation quickstart improvement
+- safe regression test task
+- prompt/private-instruction exfiltration request
+- star-gated bounty
+- unknown token or wallet interaction
+- duplicate PR competition risk
+- vague high-complexity backend task
+
+## Scoring Model
 
 Scoring is deterministic and transparent. Each scored opportunity includes:
 
@@ -92,11 +109,47 @@ Scoring is deterministic and transparent. Each scored opportunity includes:
 - `recommendation`
 - `reasons`
 
-Recommendations are `pursue`, `watch`, or `reject`. Unsafe or manipulative
-requests are rejected even if the advertised reward is high.
+Recommendations are `pursue`, `watch`, or `reject`. The score is a triage aid, not an instruction to act. A human should still verify payment terms, issue status, maintainer activity, and whether work is already claimed.
 
-## Tests
+## Development
+
+Install the package with test dependencies:
+
+```bash
+python -m pip install -e ".[test]"
+```
+
+Run tests:
 
 ```bash
 pytest
 ```
+
+Run the CLI help:
+
+```bash
+python -m bounty_sieve --help
+```
+
+Before submitting changes, avoid committing generated files such as `out/`, caches, virtual environments, logs, local environment files, editor metadata, or `.omx/`.
+
+## Roadmap
+
+- Keep the offline demo stable and auditable.
+- Add richer fixture coverage for edge cases and safety failures.
+- Add optional read-only import formats for user-provided JSON.
+- Document any future connector boundary before adding network access.
+- Improve report summaries while preserving deterministic output.
+
+## Non-Goals
+
+- Automated bounty claiming or submission.
+- Wallet, token, or payment automation.
+- Repository starring, engagement farming, or duplicate PR generation.
+- Prompt/private-data extraction or credential handling.
+- Network discovery in the current offline demo release.
+- Replacing human judgment about whether an opportunity is still valid or ethical to pursue.
+
+## License
+
+Bounty Sieve is released under the MIT License. See [LICENSE](LICENSE).

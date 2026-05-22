@@ -105,13 +105,16 @@ def _reward_estimate_usd(reward: dict[str, Any]) -> int:
     amount = reward.get("amount", 0)
     if not isinstance(amount, int | float):
         return 0
+    if amount <= 0:
+        return 0
     return int(amount)
 
 
-def _tech_match(tech: list[str]) -> int:
-    if not tech:
+def _tech_match(tech: Any) -> int:
+    if not isinstance(tech, list) or not tech:
         return 35
-    matches = PREFERRED_TECH.intersection({item.lower() for item in tech})
+    normalized = {item.lower() for item in tech if isinstance(item, str)}
+    matches = PREFERRED_TECH.intersection(normalized)
     return min(95, 35 + len(matches) * 20)
 
 
