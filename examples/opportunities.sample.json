@@ -1,0 +1,124 @@
+{
+  "opportunities": [
+    {
+      "id": "docs-install-check",
+      "title": "Add install verification step to a public CLI README",
+      "url": "https://example.org/repos/public-cli/issues/42",
+      "platform": "github",
+      "repo": "public-tools/public-cli",
+      "labels": ["documentation", "good first issue", "bounty"],
+      "summary": "The README asks users to install the CLI but does not show a command that confirms the install worked.",
+      "reward": {
+        "amount": 80,
+        "currency": "USD",
+        "type": "fixed"
+      },
+      "signals": {
+        "requires_secret_access": false,
+        "requires_prompt_exfiltration": false,
+        "requires_token_or_unknown_asset": false,
+        "star_gated": false,
+        "duplicate_pr_swarm": false,
+        "clarity": "high",
+        "repo_activity": "active",
+        "competition": "low",
+        "complexity": "low",
+        "tech": ["markdown", "cli"],
+        "scope": "tiny",
+        "acceptance_criteria": [
+          "README shows one verification command",
+          "Example output is included"
+        ]
+      }
+    },
+    {
+      "id": "json-export-edge-case",
+      "title": "Cover missing optional fields in public JSON export tests",
+      "url": "https://example.org/repos/open-data-exporter/issues/118",
+      "platform": "github",
+      "repo": "open-data/exporter",
+      "labels": ["python", "pytest", "json", "bounty"],
+      "summary": "Add regression tests around an existing public JSON export path when optional fields are absent.",
+      "reward": {
+        "amount": 150,
+        "currency": "USD",
+        "type": "fixed"
+      },
+      "signals": {
+        "requires_secret_access": false,
+        "requires_prompt_exfiltration": false,
+        "requires_token_or_unknown_asset": false,
+        "star_gated": false,
+        "duplicate_pr_swarm": false,
+        "clarity": "high",
+        "repo_activity": "active",
+        "competition": "medium",
+        "complexity": "medium",
+        "tech": ["python", "pytest", "json"],
+        "scope": "small",
+        "acceptance_criteria": [
+          "Regression test fails before the fix",
+          "Existing JSON shape stays backward compatible"
+        ]
+      }
+    },
+    {
+      "id": "watch-vague-performance",
+      "title": "Improve performance across a public API without a benchmark",
+      "url": "https://example.org/repos/public-api/issues/203",
+      "platform": "github",
+      "repo": "public-api/server",
+      "labels": ["performance", "backend", "bounty"],
+      "summary": "The issue offers a reward for broad performance improvement but does not name a failing benchmark or endpoint.",
+      "reward": {
+        "amount": 250,
+        "currency": "USD",
+        "type": "estimated"
+      },
+      "signals": {
+        "requires_secret_access": false,
+        "requires_prompt_exfiltration": false,
+        "requires_token_or_unknown_asset": false,
+        "star_gated": false,
+        "duplicate_pr_swarm": false,
+        "clarity": "low",
+        "repo_activity": "active",
+        "competition": "medium",
+        "complexity": "high",
+        "tech": ["python"],
+        "scope": "large",
+        "acceptance_criteria": []
+      }
+    },
+    {
+      "id": "reject-wallet-connection",
+      "title": "Inspect an unknown token by connecting a wallet",
+      "url": "https://example.org/bounties/unknown-token-review",
+      "platform": "forum",
+      "repo": null,
+      "labels": ["crypto", "urgent"],
+      "summary": "The posting asks participants to connect a wallet to an unknown asset before details are available.",
+      "reward": {
+        "amount": 500,
+        "currency": "USD",
+        "type": "claimed"
+      },
+      "signals": {
+        "requires_secret_access": true,
+        "requires_prompt_exfiltration": false,
+        "requires_token_or_unknown_asset": true,
+        "star_gated": false,
+        "duplicate_pr_swarm": false,
+        "clarity": "low",
+        "repo_activity": "unknown",
+        "competition": "unknown",
+        "complexity": "unknown",
+        "tech": ["wallet", "token"],
+        "scope": "unsafe",
+        "acceptance_criteria": [
+          "Connect wallet before receiving full task details"
+        ]
+      }
+    }
+  ]
+}

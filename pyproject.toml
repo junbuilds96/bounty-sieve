@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bounty-sieve"
-version = "0.1.0"
+version = "0.2.0"
 description = "Read-only offline bounty opportunity triage and safety filtering."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -15,6 +15,7 @@ classifiers = [
     "Development Status :: 3 - Alpha",
     "Environment :: Console",
     "Intended Audience :: Developers",
+    "Intended Audience :: End Users/Desktop",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",

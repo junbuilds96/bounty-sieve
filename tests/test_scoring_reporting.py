@@ -55,8 +55,11 @@ def test_scoring_rejects_secret_access_even_with_other_positive_signals() -> Non
 def test_report_handles_empty_scored_input() -> None:
     markdown = render_report([])
 
+    assert "# Bounty Sieve Decision Brief" in markdown
+    assert "## Plain-Language Summary" in markdown
     assert "- pursue: 0" in markdown
     assert "- watch: 0" in markdown
     assert "- reject: 0" in markdown
     assert "- No pursue recommendations in this run." in markdown
+    assert "- No scored opportunities were provided." in markdown
     assert "- No watch or reject recommendations in this run." in markdown

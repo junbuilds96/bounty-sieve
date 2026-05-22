@@ -6,7 +6,7 @@
 
 [简体中文 README](README_CN.md)
 
-Bounty Sieve is a small Python CLI for read-only triage of bounty-like open-source opportunities. The current release is an offline demo: it uses bundled fixtures, applies deterministic scoring rules, and writes local JSON and Markdown artifacts for human review.
+Bounty Sieve is a small Python CLI for read-only triage of bounty-like open-source opportunities. It lets ordinary users paste public opportunities into a simple JSON file, applies deterministic scoring rules, and writes local JSON and Markdown artifacts for human review.
 
 The project is useful as a transparent baseline for evaluating opportunity quality and safety signals before doing any manual work in a browser.
 
@@ -45,6 +45,65 @@ After installation, the console script is available:
 bounty-sieve --help
 ```
 
+## Ordinary-User Workflow
+
+Create a JSON file with opportunities you found manually in a browser. You can start by copying `examples/opportunities.sample.json`, or paste this smaller example into `my-opportunities.json`:
+
+```json
+{
+  "opportunities": [
+    {
+      "id": "docs-install-check",
+      "title": "Add install verification step to a public CLI README",
+      "url": "https://example.org/repos/public-cli/issues/42",
+      "platform": "github",
+      "repo": "public-tools/public-cli",
+      "labels": ["documentation", "good first issue", "bounty"],
+      "summary": "The README asks users to install the CLI but does not show a command that confirms the install worked.",
+      "reward": {
+        "amount": 80,
+        "currency": "USD",
+        "type": "fixed"
+      },
+      "signals": {
+        "requires_secret_access": false,
+        "requires_prompt_exfiltration": false,
+        "requires_token_or_unknown_asset": false,
+        "star_gated": false,
+        "duplicate_pr_swarm": false,
+        "clarity": "high",
+        "repo_activity": "active",
+        "competition": "low",
+        "complexity": "low",
+        "tech": ["markdown", "cli"],
+        "scope": "tiny",
+        "acceptance_criteria": [
+          "README shows one verification command",
+          "Example output is included"
+        ]
+      }
+    }
+  ]
+}
+```
+
+Import the file without any network access:
+
+```bash
+python -m bounty_sieve discover --source json --input my-opportunities.json --out out/discovered.json
+```
+
+Score it and generate a decision brief:
+
+```bash
+python -m bounty_sieve score out/discovered.json --out out/scored.json
+python -m bounty_sieve report out/scored.json --out out/report.md
+```
+
+Open `out/report.md`. The report is a decision brief with a plain-language summary, fastest safe wins, risky or high-reward items, a manual checklist for every item, and clear watch/reject reasons.
+
+Validation errors point to the field that needs attention, for example `opportunities[0].id is required and must be a non-empty string`.
+
 ## Quick Demo
 
 Run the offline demo to generate local review artifacts:
@@ -63,7 +122,7 @@ Wrote offline demo to out/demo
 Recommendations: pursue=2, watch=2, reject=3
 ```
 
-Open `out/demo/report.md` to review the ranked opportunities and safety reasons. The demo uses only bundled fixtures and does not access the network.
+Open `out/demo/report.md` to review the decision brief and safety reasons. The demo uses only bundled fixtures and does not access the network.
 
 ## Usage
 
@@ -71,6 +130,12 @@ Discover bundled fixture opportunities:
 
 ```bash
 python -m bounty_sieve discover --source fixture --out out/discovered.json
+```
+
+Import your own JSON opportunities:
+
+```bash
+python -m bounty_sieve discover --source json --input my-opportunities.json --out out/discovered.json
 ```
 
 Score discovered opportunities:
@@ -99,11 +164,11 @@ bounty-sieve demo --out out/demo
 
 ## Output Artifacts
 
-`demo` writes three files under the selected output directory:
+`demo` writes three files under the selected output directory. The JSON workflow writes the same shapes when you choose the paths yourself.
 
 - `discovered.json`: raw bundled fixture opportunities
 - `scored.json`: deterministic scoring output with recommendation fields
-- `report.md`: Markdown report for manual review
+- `report.md`: Markdown decision brief for manual review
 
 Generated demo output is intentionally ignored by Git.
 
@@ -118,6 +183,22 @@ The bundled fixture set includes pursue, watch, and reject cases:
 - unknown token or wallet interaction
 - duplicate PR competition risk
 - vague high-complexity backend task
+
+## JSON Input Fields
+
+Each opportunity must include:
+
+- `id`: short unique name, such as `docs-install-check`
+- `title`: human-readable title
+- `summary`: what the opportunity asks for
+
+Recommended fields:
+
+- `url`, `platform`, `repo`, and `labels`
+- `reward.amount`, `reward.currency`, and `reward.type`
+- `signals` for safety and triage: secret access, prompt exfiltration, wallet or unknown asset use, star gating, duplicate PR risk, clarity, repo activity, competition, complexity, tech, scope, and acceptance criteria
+
+Missing reward and signal fields default to conservative unknown values. Invalid field types fail with a clear CLI error instead of being silently ignored.
 
 ## Scoring Model
 
@@ -163,7 +244,7 @@ Before submitting changes, avoid committing generated files such as `out/`, cach
 
 - Keep the offline demo stable and auditable.
 - Add richer fixture coverage for edge cases and safety failures.
-- Add optional read-only import formats for user-provided JSON.
+- Add more read-only import formats after the JSON workflow stays stable.
 - Document any future connector boundary before adding network access.
 - Improve report summaries while preserving deterministic output.
 

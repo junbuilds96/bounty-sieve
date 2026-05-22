@@ -6,7 +6,7 @@
 
 [English README](README.md)
 
-Bounty Sieve 是一个小型 Python 命令行工具，用来对类似开源悬赏的机会做只读、离线的初步筛选。当前版本是一个离线演示版：它读取项目内置的样例数据，使用确定性的规则打分，并在本地生成 JSON 和 Markdown 文件，方便人工复核。
+Bounty Sieve 是一个小型 Python 命令行工具，用来对类似开源悬赏的机会做只读、离线的初步筛选。普通用户可以把公开机会复制到一个简单 JSON 文件里，工具会使用确定性的规则打分，并在本地生成 JSON 和 Markdown 文件，方便人工复核。
 
 这个项目的定位不是“自动接单工具”，而是一个透明、可审计的基线：在你打开浏览器、投入时间或开始沟通之前，先把机会质量、收益可信度、竞争风险和安全信号摆到台面上。
 
@@ -45,6 +45,65 @@ python -m bounty_sieve --help
 bounty-sieve --help
 ```
 
+## 普通用户工作流
+
+先把你在浏览器里手动看到的公开机会写进一个 JSON 文件。你可以复制 `examples/opportunities.sample.json`，也可以把下面这个小例子保存为 `my-opportunities.json`：
+
+```json
+{
+  "opportunities": [
+    {
+      "id": "docs-install-check",
+      "title": "Add install verification step to a public CLI README",
+      "url": "https://example.org/repos/public-cli/issues/42",
+      "platform": "github",
+      "repo": "public-tools/public-cli",
+      "labels": ["documentation", "good first issue", "bounty"],
+      "summary": "The README asks users to install the CLI but does not show a command that confirms the install worked.",
+      "reward": {
+        "amount": 80,
+        "currency": "USD",
+        "type": "fixed"
+      },
+      "signals": {
+        "requires_secret_access": false,
+        "requires_prompt_exfiltration": false,
+        "requires_token_or_unknown_asset": false,
+        "star_gated": false,
+        "duplicate_pr_swarm": false,
+        "clarity": "high",
+        "repo_activity": "active",
+        "competition": "low",
+        "complexity": "low",
+        "tech": ["markdown", "cli"],
+        "scope": "tiny",
+        "acceptance_criteria": [
+          "README shows one verification command",
+          "Example output is included"
+        ]
+      }
+    }
+  ]
+}
+```
+
+离线导入这个文件：
+
+```bash
+python -m bounty_sieve discover --source json --input my-opportunities.json --out out/discovered.json
+```
+
+打分并生成决策简报：
+
+```bash
+python -m bounty_sieve score out/discovered.json --out out/scored.json
+python -m bounty_sieve report out/scored.json --out out/report.md
+```
+
+打开 `out/report.md`。报告会包含白话摘要、最快的安全机会、高风险或高回报机会、每个机会的人工核验清单，以及明确的 watch/reject 原因。
+
+如果 JSON 写错，CLI 会指出具体字段，例如 `opportunities[0].id is required and must be a non-empty string`。
+
 ## 快速演示
 
 运行离线演示，生成本地复核文件：
@@ -63,7 +122,7 @@ Wrote offline demo to out/demo
 Recommendations: pursue=2, watch=2, reject=3
 ```
 
-打开 `out/demo/report.md` 可以查看排序后的机会和安全原因。演示只使用项目内置 fixture，不访问网络。
+打开 `out/demo/report.md` 可以查看决策简报和安全原因。演示只使用项目内置 fixture，不访问网络。
 
 ## 使用方式
 
@@ -71,6 +130,12 @@ Recommendations: pursue=2, watch=2, reject=3
 
 ```bash
 python -m bounty_sieve discover --source fixture --out out/discovered.json
+```
+
+导入你自己的 JSON 机会：
+
+```bash
+python -m bounty_sieve discover --source json --input my-opportunities.json --out out/discovered.json
 ```
 
 对发现结果打分：
@@ -99,11 +164,11 @@ bounty-sieve demo --out out/demo
 
 ## 输出文件
 
-`demo` 会在指定目录下写入三个文件：
+`demo` 会在指定目录下写入三个文件。JSON 工作流也会写出相同结构的文件，只是路径由你自己指定。
 
 - `discovered.json`：原始的内置样例机会
 - `scored.json`：带推荐结论的确定性打分结果
-- `report.md`：供人工阅读和复核的 Markdown 报告
+- `report.md`：供人工阅读和复核的 Markdown 决策简报
 
 演示生成的输出文件会被 Git 忽略，避免把本地运行结果提交到仓库。
 
@@ -130,6 +195,22 @@ bounty-sieve demo --out out/demo
 - `reject` 表示触及安全边界或操纵性要求，例如密钥、钱包、未知资产、提示词外泄或点星门槛。
 
 `roi_score` 会综合支付可信度、问题清晰度、仓库活跃度、技术匹配、竞争风险、复杂度和范围风险。它只是分诊辅助，不是行动指令。真正开始工作前，仍然需要人工确认付款条款、Issue 状态、维护者活跃度，以及是否已经有人认领或提交了相同工作。
+
+## JSON 输入字段
+
+每个机会必须包含：
+
+- `id`：简短唯一名称，例如 `docs-install-check`
+- `title`：人能看懂的标题
+- `summary`：机会要求做什么
+
+建议同时填写：
+
+- `url`、`platform`、`repo` 和 `labels`
+- `reward.amount`、`reward.currency` 和 `reward.type`
+- `signals`：包括是否需要密钥、是否要求提示词外泄、是否涉及钱包或未知资产、是否点星门槛、是否重复 PR 竞争、清晰度、仓库活跃度、竞争、复杂度、技术栈、范围和验收标准
+
+缺失的 reward 和 signal 字段会使用保守的 unknown 默认值。字段类型错误会让 CLI 给出明确错误，而不是静默忽略。
 
 ## 样例覆盖
 
@@ -170,7 +251,7 @@ bounty-sieve --help
 
 - 保持离线演示稳定、可审计。
 - 增加更多边界情况和安全失败场景的 fixture。
-- 增加可选的只读导入格式，用于用户自带 JSON 数据。
+- 在 JSON 工作流稳定后，增加更多只读导入格式。
 - 在引入任何网络访问之前，先明确并文档化连接器边界。
 - 改进报告摘要，同时保持输出确定性。
 

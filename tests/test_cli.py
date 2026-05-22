@@ -60,6 +60,67 @@ def test_cli_rejects_invalid_fixture_source(tmp_path: Path) -> None:
     assert not out.exists()
 
 
+def test_cli_imports_user_json_opportunities(tmp_path: Path) -> None:
+    source = tmp_path / "opportunities.json"
+    out = tmp_path / "discovered.json"
+    source.write_text(
+        json.dumps(
+            {
+                "opportunities": [
+                    {
+                        "id": "user-docs-fix",
+                        "title": "Clarify public setup docs",
+                        "summary": "Add a verification command to public setup docs.",
+                        "reward": {"amount": 90, "currency": "usd", "type": "fixed"},
+                        "signals": {
+                            "clarity": "high",
+                            "repo_activity": "active",
+                            "competition": "low",
+                            "complexity": "low",
+                            "scope": "tiny",
+                            "tech": ["markdown", "cli"],
+                        },
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    run_cli("discover", "--source", "json", "--input", str(source), "--out", str(out))
+
+    opportunities = read_json(out)
+    assert opportunities[0]["id"] == "user-docs-fix"
+    assert opportunities[0]["source"] == "json"
+    assert opportunities[0]["reward"]["currency"] == "USD"
+    assert opportunities[0]["signals"]["requires_secret_access"] is False
+    assert opportunities[0]["signals"]["acceptance_criteria"] == []
+
+
+def test_cli_json_source_requires_input(tmp_path: Path) -> None:
+    out = tmp_path / "discovered.json"
+
+    result = run_cli_unchecked("discover", "--source", "json", "--out", str(out))
+
+    assert result.returncode == 2
+    assert "--source json requires --input PATH" in result.stderr
+    assert not out.exists()
+
+
+def test_cli_json_import_reports_validation_errors(tmp_path: Path) -> None:
+    source = tmp_path / "bad.json"
+    out = tmp_path / "discovered.json"
+    source.write_text('{"opportunities": [{"title": "Missing id", "summary": "No id."}]}', encoding="utf-8")
+
+    result = run_cli_unchecked(
+        "discover", "--source", "json", "--input", str(source), "--out", str(out)
+    )
+
+    assert result.returncode == 2
+    assert "opportunities[0].id is required" in result.stderr
+    assert not out.exists()
+
+
 def test_cli_score_missing_input_fails_without_output(tmp_path: Path) -> None:
     out = tmp_path / "scored.json"
     missing = tmp_path / "missing.json"
@@ -85,6 +146,30 @@ def test_fixture_discovery_writes_realistic_fixture_set(tmp_path: Path) -> None:
     assert "reject-unknown-token" in ids
     assert "watch-duplicate-pr-swarm" in ids
     assert "watch-vague-high-complexity" in ids
+
+
+def test_sample_opportunities_json_imports_and_scores(tmp_path: Path) -> None:
+    discovered = tmp_path / "discovered.json"
+    scored = tmp_path / "scored.json"
+
+    run_cli(
+        "discover",
+        "--source",
+        "json",
+        "--input",
+        "examples/opportunities.sample.json",
+        "--out",
+        str(discovered),
+    )
+    run_cli("score", str(discovered), "--out", str(scored))
+
+    opportunities = read_json(discovered)
+    recommendations = {item["id"]: item["score"]["recommendation"] for item in read_json(scored)}
+    assert len(opportunities) == 4
+    assert recommendations["docs-install-check"] == "pursue"
+    assert recommendations["json-export-edge-case"] == "pursue"
+    assert recommendations["watch-vague-performance"] == "watch"
+    assert recommendations["reject-wallet-connection"] == "reject"
 
 
 def test_scoring_rules_are_deterministic_and_transparent(tmp_path: Path) -> None:
@@ -134,13 +219,17 @@ def test_report_rendering_includes_required_sections(tmp_path: Path) -> None:
     run_cli("report", str(scored), "--out", str(report))
 
     markdown = report.read_text(encoding="utf-8")
+    assert "# Bounty Sieve Decision Brief" in markdown
     assert "## Safety Boundary" in markdown
+    assert "## Plain-Language Summary" in markdown
     assert "- pursue: 2" in markdown
     assert "- watch: 2" in markdown
     assert "- reject: 3" in markdown
-    assert "## Top Opportunities" in markdown
+    assert "## Fastest Safe Wins" in markdown
     assert "safe-docs-quickstart" in markdown
-    assert "## Reject and Watch Reasons" in markdown
+    assert "## Risky / High-Reward Items" in markdown
+    assert "## Per-Item Manual Verification Checklist" in markdown
+    assert "## Clear Reject/Watch Reasons" in markdown
     assert "prompt or private instruction exfiltration" in markdown
     assert "## Next Actions" in markdown
 
@@ -158,7 +247,7 @@ def test_demo_outputs_all_artifacts(tmp_path: Path) -> None:
     assert report.exists()
     assert len(read_json(discovered)) == 7
     assert len(read_json(scored)) == 7
-    assert "Bounty Sieve Report" in report.read_text(encoding="utf-8")
+    assert "Bounty Sieve Decision Brief" in report.read_text(encoding="utf-8")
     assert f"Wrote offline demo to {out_dir}" in result.stdout
     assert f"- discovered: {discovered}" in result.stdout
     assert f"- scored: {scored}" in result.stdout
