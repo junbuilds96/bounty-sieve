@@ -1,6 +1,6 @@
 ---
 name: bounty-sieve
-description: Use when Hermes needs to intake, score, and report on public bounty-like opportunities with Bounty Sieve while preserving a strict read-only, offline-by-default safety boundary.
+description: Use when Hermes needs to intake, score, and report on public bounty-like opportunities with Bounty Sieve while preserving an offline-by-default, read-only safety boundary.
 version: 0.3.0
 author: Bounty Sieve Maintainers
 license: MIT
@@ -49,7 +49,7 @@ python -m bounty_sieve report out/scored.json --out out/report.md
 Explicit public GitHub issue intake:
 
 ```bash
-python -m bounty_sieve discover --source github-issue --url https://github.com/OWNER/REPO/issues/NUMBER --out out/discovered.json
+python -m bounty_sieve discover --source github-issue --url https://github.com/octocat/Hello-World/issues/1 --out out/discovered.json
 python -m bounty_sieve score out/discovered.json --out out/scored.json
 python -m bounty_sieve report out/scored.json --out out/report.md
 ```

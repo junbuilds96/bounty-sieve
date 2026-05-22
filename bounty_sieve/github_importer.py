@@ -129,11 +129,7 @@ def _fetch_comments(issue: dict[str, Any], issue_ref: GitHubIssueRef) -> list[di
     comment_count = _safe_int(issue.get("comments"))
     if comment_count <= 0:
         return []
-    comments_url = str(
-        issue.get("comments_url")
-        or _api_url(f"/repos/{issue_ref.full_repo}/issues/{issue_ref.number}/comments")
-    )
-    payload = _fetch_json(comments_url)
+    payload = _fetch_json(_comments_api_url(issue_ref))
     if isinstance(payload, list):
         return [item for item in payload if isinstance(item, dict)]
     raise GitHubImportError("GitHub comments response was not a list")
@@ -164,6 +160,10 @@ def _fetch_json(url: str) -> Any:
 
 def _api_url(path: str) -> str:
     return f"{GITHUB_API}{path}"
+
+
+def _comments_api_url(issue_ref: GitHubIssueRef) -> str:
+    return _api_url(f"/repos/{issue_ref.full_repo}/issues/{issue_ref.number}/comments")
 
 
 def _issue_id(issue_ref: GitHubIssueRef) -> str:

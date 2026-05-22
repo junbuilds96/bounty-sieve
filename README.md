@@ -6,7 +6,7 @@
 
 [简体中文 README](README_CN.md)
 
-Bounty Sieve is a small Python CLI for read-only triage of bounty-like open-source opportunities. It lets ordinary users paste public opportunities into a simple JSON file, applies deterministic scoring rules, and writes local JSON and Markdown artifacts for human review.
+Bounty Sieve is a small Python CLI for offline-by-default, read-only intake and triage of bounty-like open-source opportunities. It lets ordinary users paste public opportunities into a simple JSON file or explicitly fetch public issue metadata, applies deterministic scoring rules, and writes local JSON and Markdown artifacts for human review.
 
 The project is useful as a transparent baseline for evaluating opportunity quality and safety signals before doing any manual work in a browser.
 
@@ -19,6 +19,7 @@ This release is intentionally read-only and offline by default. It performs netw
 - connect wallets, use credentials, handle secrets, or touch private data
 - star repositories or participate in engagement-gated tasks
 - contact maintainers or bounty posters
+- claim work or log in
 - attempt prompt, policy, credential, or private-instruction exfiltration
 
 Unsafe or manipulative opportunities are rejected even when the advertised reward is high.
@@ -38,7 +39,7 @@ python -m bounty_sieve report out/scored.json --out out/report.md
 Agents may use public URL intake only when the human explicitly provides or approves the URL source:
 
 ```bash
-python -m bounty_sieve discover --source github-issue --url https://github.com/OWNER/REPO/issues/NUMBER --out out/discovered.json
+python -m bounty_sieve discover --source github-issue --url https://github.com/octocat/Hello-World/issues/1 --out out/discovered.json
 python -m bounty_sieve discover --source url-list --input examples/urls.sample.txt --out out/discovered.json
 ```
 
@@ -119,7 +120,7 @@ python -m bounty_sieve discover --source json --input my-opportunities.json --ou
 For explicit public GitHub issue intake, use:
 
 ```bash
-python -m bounty_sieve discover --source github-issue --url https://github.com/OWNER/REPO/issues/NUMBER --out out/discovered.json
+python -m bounty_sieve discover --source github-issue --url https://github.com/octocat/Hello-World/issues/1 --out out/discovered.json
 ```
 
 For a newline-delimited URL file, use:
@@ -178,7 +179,7 @@ python -m bounty_sieve discover --source json --input my-opportunities.json --ou
 Import one public GitHub issue:
 
 ```bash
-python -m bounty_sieve discover --source github-issue --url https://github.com/OWNER/REPO/issues/NUMBER --out out/discovered.json
+python -m bounty_sieve discover --source github-issue --url https://github.com/octocat/Hello-World/issues/1 --out out/discovered.json
 ```
 
 Import supported URLs from a text file:

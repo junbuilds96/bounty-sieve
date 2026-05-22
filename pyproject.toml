@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "bounty-sieve"
 version = "0.3.0"
-description = "Read-only offline bounty opportunity triage and safety filtering."
+description = "Offline-by-default read-only bounty opportunity intake, triage, and safety filtering."
 readme = "README.md"
 requires-python = ">=3.11"
 license = {file = "LICENSE"}

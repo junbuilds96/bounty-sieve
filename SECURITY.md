@@ -17,6 +17,6 @@ Include:
 
 ## Safety Boundary
 
-Bounty Sieve's current demo is offline and read-only. It should not clone repositories, open pull requests, connect wallets, use credentials, star repositories, contact maintainers, or attempt prompt/private-data exfiltration.
+Bounty Sieve's current workflow is offline by default and read-only. Explicit public URL intake only fetches public metadata. It should not clone repositories, open pull requests, connect wallets, use credentials, star repositories, contact maintainers, claim work, log in, comment, or attempt prompt/private-data exfiltration.
 
 Reports that identify a path around that boundary are treated as security-relevant even if no remote exploit is involved.

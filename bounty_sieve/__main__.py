@@ -22,7 +22,7 @@ from bounty_sieve.scoring import score_opportunities
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="bounty-sieve",
-        description="Read-only offline bounty opportunity triage and safety filtering.",
+        description="Offline-by-default read-only bounty opportunity intake, triage, and safety filtering.",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 

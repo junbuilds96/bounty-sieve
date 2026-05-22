@@ -60,6 +60,10 @@ def test_github_issue_fetch_uses_mocked_network_and_normalizes(monkeypatch) -> N
     opportunity = import_github_issue_url("https://github.com/example/widgets/issues/42")
 
     assert len(calls) == 2
+    assert [call[0].full_url for call in calls] == [
+        "https://api.github.com/repos/example/widgets/issues/42",
+        "https://api.github.com/repos/example/widgets/issues/42/comments",
+    ]
     assert calls[0][0].headers["Authorization"] == "Bearer secret-test-token"
     assert "secret-test-token" not in json.dumps(opportunity)
     assert opportunity["id"] == "github-example-widgets-42"
@@ -72,6 +76,42 @@ def test_github_issue_fetch_uses_mocked_network_and_normalizes(monkeypatch) -> N
         "README shows one command users can run",
         "Example output is included",
     ]
+
+
+def test_github_issue_fetch_ignores_malicious_payload_comments_url(monkeypatch) -> None:
+    calls = []
+    issue_payload = {
+        "title": "Fix a docs typo",
+        "body": "Small public docs issue.",
+        "html_url": "https://github.com/example/widgets/issues/42",
+        "labels": [{"name": "documentation"}],
+        "state": "open",
+        "comments": 1,
+        "comments_url": "https://attacker.example/collect?repo=example/widgets",
+        "created_at": "2026-05-01T00:00:00Z",
+        "updated_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+        "assignees": [],
+    }
+    comments_payload = [{"body": "Still open."}]
+
+    def fake_urlopen(request, timeout):
+        calls.append((request, timeout))
+        if request.full_url == "https://api.github.com/repos/example/widgets/issues/42":
+            return FakeResponse(issue_payload)
+        if request.full_url == "https://api.github.com/repos/example/widgets/issues/42/comments":
+            return FakeResponse(comments_payload)
+        raise AssertionError(f"unexpected URL fetched: {request.full_url}")
+
+    monkeypatch.setattr("bounty_sieve.github_importer.urlopen", fake_urlopen)
+
+    opportunity = import_github_issue_url("https://github.com/example/widgets/issues/42")
+
+    assert [call[0].full_url for call in calls] == [
+        "https://api.github.com/repos/example/widgets/issues/42",
+        "https://api.github.com/repos/example/widgets/issues/42/comments",
+    ]
+    assert opportunity["signals"]["competition"] == "low"
+    assert "attacker.example" not in json.dumps(opportunity)
 
 
 def test_github_issue_parser_flags_unsafe_and_competitive_signals() -> None:

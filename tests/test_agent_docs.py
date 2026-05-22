@@ -32,3 +32,19 @@ def test_readmes_document_agent_workflow() -> None:
         assert "discover --source url-list" in text
         assert "GITHUB_TOKEN" in text
         assert "human" in text.lower() or "人类" in text
+
+
+def test_public_docs_use_numeric_github_issue_examples() -> None:
+    docs = [
+        Path("README.md"),
+        Path("README_CN.md"),
+        Path("skills/bounty-sieve/SKILL.md"),
+    ]
+
+    for path in docs:
+        text = path.read_text(encoding="utf-8")
+        invalid_placeholder = "https://github.com/" + "OWNER" + "/REPO/issues/" + "NUMBER"
+        invalid_suffix = "/issues/" + "NUMBER"
+        assert invalid_placeholder not in text
+        assert invalid_suffix not in text
+        assert "https://github.com/octocat/Hello-World/issues/1" in text

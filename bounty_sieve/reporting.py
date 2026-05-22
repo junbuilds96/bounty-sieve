@@ -62,7 +62,7 @@ def render_report(scored_opportunities: list[dict[str, Any]]) -> str:
         "",
         "## Safety Boundary",
         "",
-        "This offline demo is read-only. It does not clone repositories, open pull requests, connect wallets, use credentials, star repositories, contact maintainers, or attempt prompt/private-data exfiltration.",
+        "This offline-by-default workflow is read-only. Explicit public URL intake only fetches public metadata. It does not clone repositories, open pull requests, comment, claim work, log in, connect wallets, use credentials, star repositories, contact maintainers, or attempt prompt/private-data exfiltration.",
         "",
         "## Plain-Language Summary",
         "",

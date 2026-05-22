@@ -6,7 +6,7 @@
 
 [English README](README.md)
 
-Bounty Sieve 是一个小型 Python 命令行工具，用来对类似开源悬赏的机会做只读、离线的初步筛选。普通用户可以把公开机会复制到一个简单 JSON 文件里，工具会使用确定性的规则打分，并在本地生成 JSON 和 Markdown 文件，方便人工复核。
+Bounty Sieve 是一个小型 Python 命令行工具，用来对类似开源悬赏的机会做默认离线、只读的导入和初步筛选。普通用户可以把公开机会复制到一个简单 JSON 文件里，也可以明确抓取公开 issue 元数据；工具会使用确定性的规则打分，并在本地生成 JSON 和 Markdown 文件，方便人工复核。
 
 这个项目的定位不是“自动接单工具”，而是一个透明、可审计的基线：在你打开浏览器、投入时间或开始沟通之前，先把机会质量、收益可信度、竞争风险和安全信号摆到台面上。
 
@@ -19,6 +19,7 @@ Bounty Sieve 是一个小型 Python 命令行工具，用来对类似开源悬�
 - 连接钱包、使用凭据、处理密钥，或接触私人数据
 - 给仓库点星，或参与以互动数据为门槛的任务
 - 联系维护者或悬赏发布者
+- 认领任务或登录
 - 尝试提取提示词、策略文本、凭据或私有指令
 
 即使悬赏金额很高，只要机会带有不安全、操纵性或越界的要求，Bounty Sieve 都会把它判为拒绝项。
@@ -38,7 +39,7 @@ python -m bounty_sieve report out/scored.json --out out/report.md
 只有在人类明确提供或批准公开 URL 来源时，Agent 才可以使用公开 URL 导入：
 
 ```bash
-python -m bounty_sieve discover --source github-issue --url https://github.com/OWNER/REPO/issues/NUMBER --out out/discovered.json
+python -m bounty_sieve discover --source github-issue --url https://github.com/octocat/Hello-World/issues/1 --out out/discovered.json
 python -m bounty_sieve discover --source url-list --input examples/urls.sample.txt --out out/discovered.json
 ```
 
@@ -119,7 +120,7 @@ python -m bounty_sieve discover --source json --input my-opportunities.json --ou
 如需明确导入一个公开 GitHub issue：
 
 ```bash
-python -m bounty_sieve discover --source github-issue --url https://github.com/OWNER/REPO/issues/NUMBER --out out/discovered.json
+python -m bounty_sieve discover --source github-issue --url https://github.com/octocat/Hello-World/issues/1 --out out/discovered.json
 ```
 
 如需从按行保存的 URL 文件导入：
@@ -178,7 +179,7 @@ python -m bounty_sieve discover --source json --input my-opportunities.json --ou
 导入一个公开 GitHub issue：
 
 ```bash
-python -m bounty_sieve discover --source github-issue --url https://github.com/OWNER/REPO/issues/NUMBER --out out/discovered.json
+python -m bounty_sieve discover --source github-issue --url https://github.com/octocat/Hello-World/issues/1 --out out/discovered.json
 ```
 
 从文本文件导入支持的 URL：

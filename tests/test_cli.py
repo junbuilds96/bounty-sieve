@@ -37,6 +37,10 @@ def test_package_metadata_uses_bounty_sieve_names() -> None:
     assert pyproject["project"]["name"] == "bounty-sieve"
     assert pyproject["project"]["version"] == "0.3.0"
     assert bounty_sieve.__version__ == "0.3.0"
+    assert (
+        pyproject["project"]["description"]
+        == "Offline-by-default read-only bounty opportunity intake, triage, and safety filtering."
+    )
     assert pyproject["project"]["license"] == {"file": "LICENSE"}
     assert pyproject["project"]["scripts"] == {
         "bounty-sieve": "bounty_sieve.__main__:main"
@@ -47,7 +51,7 @@ def test_cli_help_lists_offline_demo_commands() -> None:
     result = run_cli_unchecked("--help")
 
     assert result.returncode == 0
-    assert "Read-only offline bounty opportunity triage" in result.stdout
+    assert "Offline-by-default read-only bounty opportunity intake" in result.stdout
     assert "discover" in result.stdout
     assert "score" in result.stdout
     assert "report" in result.stdout
