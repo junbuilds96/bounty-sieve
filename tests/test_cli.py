@@ -41,10 +41,13 @@ def test_package_metadata_uses_bounty_sieve_names() -> None:
         pyproject["project"]["description"]
         == "Offline-by-default read-only bounty opportunity intake, triage, and safety filtering."
     )
-    assert pyproject["project"]["license"] == {"file": "LICENSE"}
+    assert pyproject["project"]["license"] == "MIT"
     assert pyproject["project"]["scripts"] == {
         "bounty-sieve": "bounty_sieve.__main__:main"
     }
+    assert pyproject["tool"]["setuptools"]["packages"]["find"]["include"] == [
+        "bounty_sieve*"
+    ]
 
 
 def test_cli_help_lists_offline_demo_commands() -> None:
