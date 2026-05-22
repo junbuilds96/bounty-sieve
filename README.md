@@ -1,6 +1,10 @@
 # Bounty Sieve
 
-[简体中文](README_CN.md)
+[![CI](https://github.com/junbuilds96/bounty-sieve/actions/workflows/ci.yml/badge.svg)](https://github.com/junbuilds96/bounty-sieve/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
+
+[简体中文 README](README_CN.md)
 
 Bounty Sieve is a small Python CLI for read-only triage of bounty-like open-source opportunities. The current release is an offline demo: it uses bundled fixtures, applies deterministic scoring rules, and writes local JSON and Markdown artifacts for human review.
 
@@ -40,6 +44,26 @@ After installation, the console script is available:
 ```bash
 bounty-sieve --help
 ```
+
+## Quick Demo
+
+Run the offline demo to generate local review artifacts:
+
+```bash
+python -m bounty_sieve demo --out out/demo
+```
+
+Sample output:
+
+```text
+Wrote offline demo to out/demo
+- discovered: out/demo/discovered.json
+- scored: out/demo/scored.json
+- report: out/demo/report.md
+Recommendations: pursue=2, watch=2, reject=3
+```
+
+Open `out/demo/report.md` to review the ranked opportunities and safety reasons. The demo uses only bundled fixtures and does not access the network.
 
 ## Usage
 

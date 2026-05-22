@@ -148,7 +148,7 @@ def test_report_rendering_includes_required_sections(tmp_path: Path) -> None:
 def test_demo_outputs_all_artifacts(tmp_path: Path) -> None:
     out_dir = tmp_path / "demo"
 
-    run_cli("demo", "--out", str(out_dir))
+    result = run_cli("demo", "--out", str(out_dir))
 
     discovered = out_dir / "discovered.json"
     scored = out_dir / "scored.json"
@@ -159,3 +159,8 @@ def test_demo_outputs_all_artifacts(tmp_path: Path) -> None:
     assert len(read_json(discovered)) == 7
     assert len(read_json(scored)) == 7
     assert "Bounty Sieve Report" in report.read_text(encoding="utf-8")
+    assert f"Wrote offline demo to {out_dir}" in result.stdout
+    assert f"- discovered: {discovered}" in result.stdout
+    assert f"- scored: {scored}" in result.stdout
+    assert f"- report: {report}" in result.stdout
+    assert "Recommendations: pursue=2, watch=2, reject=3" in result.stdout

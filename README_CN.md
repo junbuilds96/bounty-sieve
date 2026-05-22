@@ -1,6 +1,10 @@
 # Bounty Sieve
 
-[English](README.md)
+[![CI](https://github.com/junbuilds96/bounty-sieve/actions/workflows/ci.yml/badge.svg)](https://github.com/junbuilds96/bounty-sieve/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
+
+[English README](README.md)
 
 Bounty Sieve 是一个小型 Python 命令行工具，用来对类似开源悬赏的机会做只读、离线的初步筛选。当前版本是一个离线演示版：它读取项目内置的样例数据，使用确定性的规则打分，并在本地生成 JSON 和 Markdown 文件，方便人工复核。
 
@@ -40,6 +44,26 @@ python -m bounty_sieve --help
 ```bash
 bounty-sieve --help
 ```
+
+## 快速演示
+
+运行离线演示，生成本地复核文件：
+
+```bash
+python -m bounty_sieve demo --out out/demo
+```
+
+示例输出：
+
+```text
+Wrote offline demo to out/demo
+- discovered: out/demo/discovered.json
+- scored: out/demo/scored.json
+- report: out/demo/report.md
+Recommendations: pursue=2, watch=2, reject=3
+```
+
+打开 `out/demo/report.md` 可以查看排序后的机会和安全原因。演示只使用项目内置 fixture，不访问网络。
 
 ## 使用方式
 

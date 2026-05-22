@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 from pathlib import Path
 
 from bounty_sieve.fixtures import load_fixture_opportunities
@@ -60,6 +61,17 @@ def main(argv: list[str] | None = None) -> int:
         write_json(discovered_path, opportunities)
         write_json(scored_path, scored)
         write_text(report_path, render_report(scored))
+        counts = Counter(item["score"]["recommendation"] for item in scored)
+        print(f"Wrote offline demo to {out_dir}")
+        print(f"- discovered: {discovered_path}")
+        print(f"- scored: {scored_path}")
+        print(f"- report: {report_path}")
+        print(
+            "Recommendations: "
+            f"pursue={counts.get('pursue', 0)}, "
+            f"watch={counts.get('watch', 0)}, "
+            f"reject={counts.get('reject', 0)}"
+        )
         return 0
 
     parser.error(f"unknown command: {args.command}")
