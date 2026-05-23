@@ -61,6 +61,14 @@ def test_cli_help_lists_offline_demo_commands() -> None:
     assert "demo" in result.stdout
 
 
+def test_cli_version_prints_package_version() -> None:
+    result = run_cli_unchecked("--version")
+
+    assert result.returncode == 0
+    assert result.stdout == f"bounty-sieve {bounty_sieve.__version__}\n"
+    assert result.stderr == ""
+
+
 def test_discover_help_lists_agent_intake_sources() -> None:
     result = run_cli_unchecked("discover", "--help")
 

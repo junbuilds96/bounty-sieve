@@ -6,6 +6,7 @@ import argparse
 from collections import Counter
 from pathlib import Path
 
+from bounty_sieve import __version__
 from bounty_sieve.fixtures import load_fixture_opportunities
 from bounty_sieve.github_importer import (
     GitHubImportError,
@@ -23,6 +24,9 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="bounty-sieve",
         description="Offline-by-default read-only bounty opportunity intake, triage, and safety filtering.",
+    )
+    parser.add_argument(
+        "--version", action="version", version=f"bounty-sieve {__version__}"
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 

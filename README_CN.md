@@ -82,6 +82,7 @@ python -m bounty_sieve --help
 安装后也可以使用控制台脚本：
 
 ```bash
+bounty-sieve --version
 bounty-sieve --help
 ```
 

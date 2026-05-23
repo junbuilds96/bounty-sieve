@@ -82,6 +82,7 @@ python -m bounty_sieve --help
 After installation, the console script is available:
 
 ```bash
+bounty-sieve --version
 bounty-sieve --help
 ```
 
