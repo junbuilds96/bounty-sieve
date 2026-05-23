@@ -90,7 +90,7 @@ bounty-sieve --help
 
 ## 普通用户工作流
 
-先把你在浏览器里手动看到的公开机会写进一个 JSON 文件。你可以复制 `examples/opportunities.sample.json`，也可以把下面这个小例子保存为 `my-opportunities.json`：
+先把你在浏览器里手动看到的公开机会写进一个 JSON 文件。最短的有效起点是把 `examples/opportunities.minimal.json` 复制为 `my-opportunities.json`，然后替换里面的三个文本字段。你也可以复制更完整的 `examples/opportunities.sample.json`，或把下面这个小例子保存为 `my-opportunities.json`：
 
 ```json
 {

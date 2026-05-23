@@ -90,7 +90,7 @@ bounty-sieve --help
 
 ## Ordinary-User Workflow
 
-Create a JSON file with opportunities you found manually in a browser. You can start by copying `examples/opportunities.sample.json`, or paste this smaller example into `my-opportunities.json`:
+Create a JSON file with opportunities you found manually in a browser. For the shortest valid starting point, copy `examples/opportunities.minimal.json` to `my-opportunities.json` and replace the three text fields. You can also start from the fuller `examples/opportunities.sample.json`, or paste this smaller example into `my-opportunities.json`:
 
 ```json
 {
