@@ -52,6 +52,8 @@ python -m bounty_sieve score out/discovered.json --out out/scored.json
 python -m bounty_sieve report out/scored.json --out out/report.md
 ```
 
+Add `--summary` to the report command when an agent needs a concise stdout recap after the Markdown file is written.
+
 Agents may use public URL intake only when the human explicitly provides or approves the URL source:
 
 ```bash
@@ -161,7 +163,7 @@ python -m bounty_sieve score out/discovered.json --out out/scored.json
 python -m bounty_sieve report out/scored.json --out out/report.md
 ```
 
-Open `out/report.md`. The report is a decision brief with a plain-language summary, fastest safe wins, risky or high-reward items, a manual checklist for every item, and clear watch/reject reasons.
+Open `out/report.md`. The report is a decision brief with a plain-language summary, fastest safe wins, risky or high-reward items, a manual checklist for every item, and clear watch/reject reasons. Add `--summary` to also print the report path, counts, and summary sentence to stdout.
 
 Validation errors point to the field that needs attention, for example `opportunities[0].id is required and must be a non-empty string`.
 
@@ -222,6 +224,12 @@ Render a Markdown report:
 
 ```bash
 python -m bounty_sieve report out/scored.json --out out/report.md
+```
+
+Use `--summary` to print a concise stdout summary after the report is written:
+
+```bash
+python -m bounty_sieve report out/scored.json --out out/report.md --summary
 ```
 
 Run the full offline demo:

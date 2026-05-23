@@ -52,6 +52,8 @@ python -m bounty_sieve score out/discovered.json --out out/scored.json
 python -m bounty_sieve report out/scored.json --out out/report.md
 ```
 
+如果 Agent 需要在 Markdown 写出后得到简短 stdout 摘要，可以给 report 命令加上 `--summary`。
+
 只有在人类明确提供或批准公开 URL 来源时，Agent 才可以使用公开 URL 导入：
 
 ```bash
@@ -161,7 +163,7 @@ python -m bounty_sieve score out/discovered.json --out out/scored.json
 python -m bounty_sieve report out/scored.json --out out/report.md
 ```
 
-打开 `out/report.md`。报告会包含白话摘要、最快的安全机会、高风险或高回报机会、每个机会的人工核验清单，以及明确的 watch/reject 原因。
+打开 `out/report.md`。报告会包含白话摘要、最快的安全机会、高风险或高回报机会、每个机会的人工核验清单，以及明确的 watch/reject 原因。加上 `--summary` 还会把报告路径、计数和摘要句输出到 stdout。
 
 如果 JSON 写错，CLI 会指出具体字段，例如 `opportunities[0].id is required and must be a non-empty string`。
 
@@ -222,6 +224,12 @@ python -m bounty_sieve score out/discovered.json --out out/scored.json
 
 ```bash
 python -m bounty_sieve report out/scored.json --out out/report.md
+```
+
+使用 `--summary` 可以在报告写出后打印简短 stdout 摘要：
+
+```bash
+python -m bounty_sieve report out/scored.json --out out/report.md --summary
 ```
 
 运行完整离线演示：

@@ -284,9 +284,11 @@ def test_report_rendering_includes_required_sections(tmp_path: Path) -> None:
     run_cli("discover", "--source", "fixture", "--out", str(discovered))
     run_cli("score", str(discovered), "--out", str(scored))
 
-    run_cli("report", str(scored), "--out", str(report))
+    result = run_cli("report", str(scored), "--out", str(report))
 
     markdown = report.read_text(encoding="utf-8")
+    assert result.stdout == ""
+    assert result.stderr == ""
     assert "# Bounty Sieve Decision Brief" in markdown
     assert "## Safety Boundary" in markdown
     assert "## Plain-Language Summary" in markdown
@@ -300,6 +302,26 @@ def test_report_rendering_includes_required_sections(tmp_path: Path) -> None:
     assert "## Clear Reject/Watch Reasons" in markdown
     assert "prompt or private instruction exfiltration" in markdown
     assert "## Next Actions" in markdown
+
+
+def test_report_summary_prints_concise_stdout_after_writing(tmp_path: Path) -> None:
+    discovered = tmp_path / "opportunities.json"
+    scored = tmp_path / "scored.json"
+    report = tmp_path / "report.md"
+    run_cli("discover", "--source", "fixture", "--out", str(discovered))
+    run_cli("score", str(discovered), "--out", str(scored))
+
+    result = run_cli("report", str(scored), "--out", str(report), "--summary")
+
+    assert report.exists()
+    assert result.stderr == ""
+    assert result.stdout == (
+        f"Report: {report}\n"
+        "Total: 7\n"
+        "Recommendations: pursue=2, watch=2, reject=3\n"
+        "Summary: Bounty Sieve reviewed 7 opportunities: 2 look worth manual verification, "
+        "2 need caution before spending time, and 3 should be rejected under the current safety rules.\n"
+    )
 
 
 def test_demo_outputs_all_artifacts(tmp_path: Path) -> None:

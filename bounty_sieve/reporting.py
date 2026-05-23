@@ -3,14 +3,52 @@
 from __future__ import annotations
 
 from collections import Counter
+from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 
 RECOMMENDATION_ORDER = ("pursue", "watch", "reject")
 
 
-def render_report(scored_opportunities: list[dict[str, Any]]) -> str:
+@dataclass(frozen=True)
+class ReportSummary:
+    total: int
+    counts: Counter[str]
+    sentence: str
+
+
+def summarize_report(scored_opportunities: list[dict[str, Any]]) -> ReportSummary:
     counts = Counter(item["score"]["recommendation"] for item in scored_opportunities)
+    return ReportSummary(
+        total=len(scored_opportunities),
+        counts=counts,
+        sentence=_summary_sentence(len(scored_opportunities), counts),
+    )
+
+
+def render_stdout_summary(
+    scored_opportunities: list[dict[str, Any]], report_path: str | Path
+) -> str:
+    summary = summarize_report(scored_opportunities)
+    return "\n".join(
+        [
+            f"Report: {report_path}",
+            f"Total: {summary.total}",
+            (
+                "Recommendations: "
+                f"pursue={summary.counts.get('pursue', 0)}, "
+                f"watch={summary.counts.get('watch', 0)}, "
+                f"reject={summary.counts.get('reject', 0)}"
+            ),
+            f"Summary: {summary.sentence}",
+        ]
+    )
+
+
+def render_report(scored_opportunities: list[dict[str, Any]]) -> str:
+    summary = summarize_report(scored_opportunities)
+    counts = summary.counts
     pursue_items = sorted(
         [
             item
@@ -66,7 +104,7 @@ def render_report(scored_opportunities: list[dict[str, Any]]) -> str:
         "",
         "## Plain-Language Summary",
         "",
-        _summary_sentence(len(scored_opportunities), counts),
+        summary.sentence,
         "",
         "## Counts by Recommendation",
         "",
