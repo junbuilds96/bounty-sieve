@@ -1,7 +1,8 @@
-"""Markdown report rendering."""
+"""Report rendering."""
 
 from __future__ import annotations
 
+import json
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
@@ -44,6 +45,22 @@ def render_stdout_summary(
             f"Summary: {summary.sentence}",
         ]
     )
+
+
+def render_stdout_summary_json(
+    scored_opportunities: list[dict[str, Any]], report_path: str | Path
+) -> str:
+    summary = summarize_report(scored_opportunities)
+    payload = {
+        "recommendations": {
+            recommendation: summary.counts.get(recommendation, 0)
+            for recommendation in RECOMMENDATION_ORDER
+        },
+        "report_path": str(report_path),
+        "summary": summary.sentence,
+        "total": summary.total,
+    }
+    return json.dumps(payload, sort_keys=True)
 
 
 def render_report(scored_opportunities: list[dict[str, Any]]) -> str:

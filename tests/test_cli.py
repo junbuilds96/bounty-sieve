@@ -385,6 +385,52 @@ def test_report_summary_prints_concise_stdout_after_writing(tmp_path: Path) -> N
     )
 
 
+def test_report_summary_json_prints_machine_readable_stdout_after_writing(
+    tmp_path: Path,
+) -> None:
+    discovered = tmp_path / "opportunities.json"
+    scored = tmp_path / "scored.json"
+    report = tmp_path / "report.md"
+    run_cli("discover", "--source", "fixture", "--out", str(discovered))
+    run_cli("score", str(discovered), "--out", str(scored))
+
+    result = run_cli("report", str(scored), "--out", str(report), "--summary-json")
+
+    assert report.exists()
+    assert result.stderr == ""
+    assert json.loads(result.stdout) == {
+        "recommendations": {"pursue": 2, "reject": 3, "watch": 2},
+        "report_path": str(report),
+        "summary": (
+            "Bounty Sieve reviewed 7 opportunities: 2 look worth manual verification, "
+            "2 need caution before spending time, and 3 should be rejected under the current safety rules."
+        ),
+        "total": 7,
+    }
+    assert result.stdout == (
+        '{"recommendations": {"pursue": 2, "reject": 3, "watch": 2}, '
+        f'"report_path": "{report}", '
+        '"summary": "Bounty Sieve reviewed 7 opportunities: 2 look worth manual verification, '
+        '2 need caution before spending time, and 3 should be rejected under the current safety rules.", '
+        '"total": 7}\n'
+    )
+
+
+def test_report_summary_flags_are_mutually_exclusive(tmp_path: Path) -> None:
+    scored = tmp_path / "scored.json"
+    report = tmp_path / "report.md"
+    scored.write_text("[]", encoding="utf-8")
+
+    result = run_cli_unchecked(
+        "report", str(scored), "--out", str(report), "--summary", "--summary-json"
+    )
+
+    assert result.returncode == 2
+    assert result.stdout == ""
+    assert "not allowed with argument --summary" in result.stderr
+    assert not report.exists()
+
+
 def test_demo_outputs_all_artifacts(tmp_path: Path) -> None:
     out_dir = tmp_path / "demo"
 

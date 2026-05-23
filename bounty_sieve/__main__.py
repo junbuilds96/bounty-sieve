@@ -18,7 +18,11 @@ from bounty_sieve.github_importer import (
 )
 from bounty_sieve.io import read_json, write_json, write_text
 from bounty_sieve.opportunities import OpportunityValidationError, load_json_opportunities
-from bounty_sieve.reporting import render_report, render_stdout_summary
+from bounty_sieve.reporting import (
+    render_report,
+    render_stdout_summary,
+    render_stdout_summary_json,
+)
 from bounty_sieve.scoring import score_opportunities
 
 
@@ -58,10 +62,16 @@ def main(argv: list[str] | None = None) -> int:
     report_parser = subparsers.add_parser("report", help="Render a markdown report.")
     report_parser.add_argument("input")
     report_parser.add_argument("--out", required=True)
-    report_parser.add_argument(
+    report_summary_group = report_parser.add_mutually_exclusive_group()
+    report_summary_group.add_argument(
         "--summary",
         action="store_true",
         help="Print report path, recommendation counts, and summary after writing.",
+    )
+    report_summary_group.add_argument(
+        "--summary-json",
+        action="store_true",
+        help="Print machine-readable report summary JSON after writing.",
     )
 
     demo_parser = subparsers.add_parser("demo", help="Run fixture discovery, scoring, and report.")
@@ -136,6 +146,8 @@ def main(argv: list[str] | None = None) -> int:
         write_text(args.out, report)
         if args.summary:
             print(render_stdout_summary(scored, args.out))
+        if args.summary_json:
+            print(render_stdout_summary_json(scored, args.out))
         return 0
 
     if args.command == "demo":
