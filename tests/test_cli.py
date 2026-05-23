@@ -55,6 +55,7 @@ def test_cli_help_lists_offline_demo_commands() -> None:
 
     assert result.returncode == 0
     assert "Offline-by-default read-only bounty opportunity intake" in result.stdout
+    assert "validate" in result.stdout
     assert "discover" in result.stdout
     assert "score" in result.stdout
     assert "report" in result.stdout
@@ -124,6 +125,44 @@ def test_cli_imports_user_json_opportunities(tmp_path: Path) -> None:
     assert opportunities[0]["reward"]["currency"] == "USD"
     assert opportunities[0]["signals"]["requires_secret_access"] is False
     assert opportunities[0]["signals"]["acceptance_criteria"] == []
+
+
+def test_cli_validate_reports_opportunity_count_and_ids(tmp_path: Path) -> None:
+    source = tmp_path / "opportunities.json"
+    source.write_text(
+        json.dumps(
+            {
+                "opportunities": [
+                    {
+                        "id": "user-docs-fix",
+                        "title": "Clarify public setup docs",
+                        "summary": "Add a verification command to public setup docs.",
+                    },
+                    {
+                        "id": "user-test-fix",
+                        "title": "Fix flaky public test",
+                        "summary": "Stabilize a deterministic unit test.",
+                    },
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = run_cli("validate", str(source))
+
+    assert result.stdout == "Validated 2 opportunities: user-docs-fix, user-test-fix\n"
+    assert result.stderr == ""
+
+
+def test_cli_validate_reports_field_level_validation_errors(tmp_path: Path) -> None:
+    source = tmp_path / "bad.json"
+    source.write_text('{"opportunities": [{"title": "Missing id", "summary": "No id."}]}', encoding="utf-8")
+
+    result = run_cli_unchecked("validate", str(source))
+
+    assert result.returncode == 2
+    assert "opportunities[0].id is required" in result.stderr
 
 
 def test_cli_json_source_requires_input(tmp_path: Path) -> None:

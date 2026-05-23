@@ -30,6 +30,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
+    validate_parser = subparsers.add_parser(
+        "validate", help="Validate a local JSON opportunity file."
+    )
+    validate_parser.add_argument("input", help="Path to a user-provided JSON opportunity file.")
+
     discover_parser = subparsers.add_parser("discover", help="Discover opportunities.")
     discover_parser.add_argument(
         "--source",
@@ -56,6 +61,16 @@ def main(argv: list[str] | None = None) -> int:
     demo_parser.add_argument("--out", required=True)
 
     args = parser.parse_args(argv)
+
+    if args.command == "validate":
+        try:
+            opportunities = load_json_opportunities(args.input)
+        except OpportunityValidationError as exc:
+            validate_parser.error(str(exc))
+        ids = ", ".join(item["id"] for item in opportunities) or "(none)"
+        noun = "opportunity" if len(opportunities) == 1 else "opportunities"
+        print(f"Validated {len(opportunities)} {noun}: {ids}")
+        return 0
 
     if args.command == "discover":
         if args.source == "fixture":

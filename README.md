@@ -128,6 +128,12 @@ Create a JSON file with opportunities you found manually in a browser. You can s
 }
 ```
 
+Validate the file locally before importing it:
+
+```bash
+python -m bounty_sieve validate my-opportunities.json
+```
+
 Import the file without any network access:
 
 ```bash
@@ -190,6 +196,7 @@ python -m bounty_sieve discover --source fixture --out out/discovered.json
 Import your own JSON opportunities:
 
 ```bash
+python -m bounty_sieve validate my-opportunities.json
 python -m bounty_sieve discover --source json --input my-opportunities.json --out out/discovered.json
 ```
 

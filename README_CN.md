@@ -128,6 +128,12 @@ bounty-sieve --help
 }
 ```
 
+导入前可以先在本地验证这个文件：
+
+```bash
+python -m bounty_sieve validate my-opportunities.json
+```
+
 离线导入这个文件：
 
 ```bash
@@ -190,6 +196,7 @@ python -m bounty_sieve discover --source fixture --out out/discovered.json
 导入你自己的 JSON 机会：
 
 ```bash
+python -m bounty_sieve validate my-opportunities.json
 python -m bounty_sieve discover --source json --input my-opportunities.json --out out/discovered.json
 ```
 
