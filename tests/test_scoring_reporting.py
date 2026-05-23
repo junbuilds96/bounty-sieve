@@ -63,3 +63,10 @@ def test_report_handles_empty_scored_input() -> None:
     assert "- No pursue recommendations in this run." in markdown
     assert "- No scored opportunities were provided." in markdown
     assert "- No watch or reject recommendations in this run." in markdown
+    assert "## Agent Handoff" in markdown
+    assert "local decision brief" in markdown
+    assert "select candidates for human review" in markdown
+    assert "must not clone, comment, submit PRs, connect wallets" in markdown
+    assert "use credentials, star repos, claim work, or contact maintainers" in markdown
+    assert markdown.index("## Clear Reject/Watch Reasons") < markdown.index("## Agent Handoff")
+    assert markdown.index("## Agent Handoff") < markdown.index("## Next Actions")

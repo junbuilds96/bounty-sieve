@@ -133,6 +133,16 @@ def render_report(scored_opportunities: list[dict[str, Any]]) -> str:
     lines.extend(
         [
             "",
+            "## Agent Handoff",
+            "",
+            "This generated report is a local decision brief. Agents may only use it to select candidates for human review.",
+            "Agents must not clone, comment, submit PRs, connect wallets, use credentials, star repos, claim work, or contact maintainers without explicit human approval.",
+        ]
+    )
+
+    lines.extend(
+        [
+            "",
             "## Next Actions",
             "",
             "1. Review pursue items manually in a browser before acting.",
