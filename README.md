@@ -90,44 +90,10 @@ bounty-sieve --help
 
 ## Ordinary-User Workflow
 
-Create a JSON file with opportunities you found manually in a browser. For the shortest valid starting point, copy `examples/opportunities.minimal.json` to `my-opportunities.json` and replace the three text fields. You can also start from the fuller `examples/opportunities.sample.json`, or paste this smaller example into `my-opportunities.json`:
+Create a JSON file with opportunities you found manually in a browser. For the smallest copyable offline shape, start from `examples/minimal-opportunities.json`; for a fuller set of optional fields, see `examples/opportunities.sample.json`.
 
-```json
-{
-  "opportunities": [
-    {
-      "id": "docs-install-check",
-      "title": "Add install verification step to a public CLI README",
-      "url": "https://example.org/repos/public-cli/issues/42",
-      "platform": "github",
-      "repo": "public-tools/public-cli",
-      "labels": ["documentation", "good first issue", "bounty"],
-      "summary": "The README asks users to install the CLI but does not show a command that confirms the install worked.",
-      "reward": {
-        "amount": 80,
-        "currency": "USD",
-        "type": "fixed"
-      },
-      "signals": {
-        "requires_secret_access": false,
-        "requires_prompt_exfiltration": false,
-        "requires_token_or_unknown_asset": false,
-        "star_gated": false,
-        "duplicate_pr_swarm": false,
-        "clarity": "high",
-        "repo_activity": "active",
-        "competition": "low",
-        "complexity": "low",
-        "tech": ["markdown", "cli"],
-        "scope": "tiny",
-        "acceptance_criteria": [
-          "README shows one verification command",
-          "Example output is included"
-        ]
-      }
-    }
-  ]
-}
+```bash
+cp examples/minimal-opportunities.json my-opportunities.json
 ```
 
 Validate the file locally before importing it:
@@ -135,6 +101,8 @@ Validate the file locally before importing it:
 ```bash
 python -m bounty_sieve validate my-opportunities.json
 ```
+
+Validation checks the local JSON shape and supported field values. It does not verify that an opportunity is safe, payable, or worth pursuing.
 
 Import the file without any network access:
 

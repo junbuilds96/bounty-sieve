@@ -1,0 +1,9 @@
+{
+  "opportunities": [
+    {
+      "id": "docs-install-check",
+      "title": "Add install verification step to a public CLI README",
+      "summary": "The README asks users to install the CLI but does not show a command that confirms the install worked."
+    }
+  ]
+}

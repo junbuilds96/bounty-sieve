@@ -90,44 +90,10 @@ bounty-sieve --help
 
 ## 普通用户工作流
 
-先把你在浏览器里手动看到的公开机会写进一个 JSON 文件。最短的有效起点是把 `examples/opportunities.minimal.json` 复制为 `my-opportunities.json`，然后替换里面的三个文本字段。你也可以复制更完整的 `examples/opportunities.sample.json`，或把下面这个小例子保存为 `my-opportunities.json`：
+先把你在浏览器里手动看到的公开机会写进一个 JSON 文件。最小的可复制离线格式可以从 `examples/minimal-opportunities.json` 开始；如果想看更多可选字段，可以参考 `examples/opportunities.sample.json`。
 
-```json
-{
-  "opportunities": [
-    {
-      "id": "docs-install-check",
-      "title": "Add install verification step to a public CLI README",
-      "url": "https://example.org/repos/public-cli/issues/42",
-      "platform": "github",
-      "repo": "public-tools/public-cli",
-      "labels": ["documentation", "good first issue", "bounty"],
-      "summary": "The README asks users to install the CLI but does not show a command that confirms the install worked.",
-      "reward": {
-        "amount": 80,
-        "currency": "USD",
-        "type": "fixed"
-      },
-      "signals": {
-        "requires_secret_access": false,
-        "requires_prompt_exfiltration": false,
-        "requires_token_or_unknown_asset": false,
-        "star_gated": false,
-        "duplicate_pr_swarm": false,
-        "clarity": "high",
-        "repo_activity": "active",
-        "competition": "low",
-        "complexity": "low",
-        "tech": ["markdown", "cli"],
-        "scope": "tiny",
-        "acceptance_criteria": [
-          "README shows one verification command",
-          "Example output is included"
-        ]
-      }
-    }
-  ]
-}
+```bash
+cp examples/minimal-opportunities.json my-opportunities.json
 ```
 
 导入前可以先在本地验证这个文件：
@@ -135,6 +101,8 @@ bounty-sieve --help
 ```bash
 python -m bounty_sieve validate my-opportunities.json
 ```
+
+验证只检查本地 JSON 结构和受支持的字段值；它不会确认某个机会是否安全、是否会付款，或是否值得投入。
 
 离线导入这个文件：
 

@@ -155,6 +155,29 @@ def test_cli_validate_reports_opportunity_count_and_ids(tmp_path: Path) -> None:
     assert result.stderr == ""
 
 
+def test_minimal_example_validates_and_imports_through_cli(tmp_path: Path) -> None:
+    out = tmp_path / "discovered.json"
+
+    validate_result = run_cli("validate", "examples/minimal-opportunities.json")
+    run_cli(
+        "discover",
+        "--source",
+        "json",
+        "--input",
+        "examples/minimal-opportunities.json",
+        "--out",
+        str(out),
+    )
+
+    opportunities = read_json(out)
+    assert validate_result.stdout == "Validated 1 opportunity: docs-install-check\n"
+    assert validate_result.stderr == ""
+    assert len(opportunities) == 1
+    assert opportunities[0]["id"] == "docs-install-check"
+    assert opportunities[0]["source"] == "json"
+    assert opportunities[0]["reward"] == {"amount": 0, "currency": "USD", "type": "unknown"}
+
+
 def test_cli_validate_reports_field_level_validation_errors(tmp_path: Path) -> None:
     source = tmp_path / "bad.json"
     source.write_text('{"opportunities": [{"title": "Missing id", "summary": "No id."}]}', encoding="utf-8")
