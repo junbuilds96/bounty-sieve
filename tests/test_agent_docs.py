@@ -80,6 +80,38 @@ def test_case_study_is_linked_and_documents_current_commands() -> None:
         assert trap in case_text
 
 
+def test_synthetic_html_sample_report_is_linked_and_documents_fixture_counts() -> None:
+    artifact = Path("examples/synthetic-report.html")
+    assert artifact.exists()
+
+    artifact_text = artifact.read_text(encoding="utf-8")
+    readme = Path("README.md").read_text(encoding="utf-8")
+    readme_cn = Path("README_CN.md").read_text(encoding="utf-8")
+
+    assert "examples/synthetic-report.html" in readme
+    assert "examples/synthetic-report.html" in readme_cn
+    assert "Synthetic sample generated from the bundled fixture" in artifact_text
+    assert "not live bounty data" in artifact_text
+    assert "2 pursue / 2 watch / 3 reject" in artifact_text
+
+    required_counts = [
+        "pursue: 2",
+        "watch: 2",
+        "reject: 3",
+    ]
+    for count in required_counts:
+        assert count in artifact_text
+
+    required_traps = [
+        "Prompt/context exfiltration",
+        "Wallet/secret access",
+        "Star-gated reward",
+        "Duplicate-PR swarm",
+    ]
+    for trap in required_traps:
+        assert trap in artifact_text
+
+
 def test_case_study_offline_command_sequence_still_works(tmp_path: Path) -> None:
     discovered = tmp_path / "discovered.json"
     scored = tmp_path / "scored.json"

@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bounty Sieve Synthetic Sample Report</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #1d2733;
+      --muted: #637083;
+      --line: #d8dee7;
+      --panel: #f7f9fb;
+      --pursue: #126b4e;
+      --pursue-bg: #e8f5ef;
+      --watch: #8a5a00;
+      --watch-bg: #fff4d8;
+      --reject: #a93434;
+      --reject-bg: #fdeceb;
+      --accent: #285a9b;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: #ffffff;
+      font: 16px/1.55 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    main {
+      width: min(1120px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 32px 0 48px;
+    }
+
+    header {
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 24px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: clamp(2rem, 5vw, 3.2rem);
+      line-height: 1.05;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin: 32px 0 12px;
+      font-size: 1.3rem;
+      letter-spacing: 0;
+    }
+
+    p {
+      margin: 0 0 12px;
+      max-width: 78ch;
+    }
+
+    .note {
+      color: var(--muted);
+    }
+
+    .counts {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 20px;
+    }
+
+    .count {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 16px;
+      background: var(--panel);
+    }
+
+    .count strong {
+      display: block;
+      font-size: 2.25rem;
+      line-height: 1;
+    }
+
+    .count span {
+      color: var(--muted);
+      text-transform: uppercase;
+      font-size: 0.78rem;
+      letter-spacing: 0.08em;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .item,
+    .trap {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 16px;
+      background: #ffffff;
+    }
+
+    .item h3,
+    .trap h3 {
+      margin: 0 0 8px;
+      font-size: 1rem;
+      letter-spacing: 0;
+    }
+
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .tag {
+      border-radius: 999px;
+      padding: 3px 9px;
+      font-size: 0.78rem;
+      font-weight: 700;
+    }
+
+    .pursue {
+      color: var(--pursue);
+      background: var(--pursue-bg);
+    }
+
+    .watch {
+      color: var(--watch);
+      background: var(--watch-bg);
+    }
+
+    .reject {
+      color: var(--reject);
+      background: var(--reject-bg);
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 760px;
+    }
+
+    th,
+    td {
+      padding: 11px 12px;
+      text-align: left;
+      vertical-align: top;
+      border-bottom: 1px solid var(--line);
+    }
+
+    th {
+      color: var(--muted);
+      background: var(--panel);
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    a {
+      color: var(--accent);
+    }
+
+    @media (max-width: 720px) {
+      main {
+        width: min(100% - 24px, 1120px);
+        padding-top: 24px;
+      }
+
+      .counts,
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <p class="note">Synthetic sample generated from the bundled fixture in <code>bounty_sieve/fixtures.py</code>. This is not live bounty data and does not describe real payouts, real adoption, or current GitHub activity.</p>
+      <h1>Bounty Sieve Sample Report</h1>
+      <p>Bounty Sieve reviewed 7 synthetic opportunities before any browser, repository, wallet, credential, PR, or maintainer-contact action. The result is 2 pursue / 2 watch / 3 reject, separating fast safe wins from watch items and rejects that cross the safety boundary.</p>
+      <div class="counts" aria-label="Counts by recommendation">
+        <div class="count"><strong>2</strong><span>pursue</span><p>pursue: 2 clear tasks worth manual verification.</p></div>
+        <div class="count"><strong>2</strong><span>watch</span><p>watch: 2 tasks need caution before spending time.</p></div>
+        <div class="count"><strong>3</strong><span>reject</span><p>reject: 3 tasks cross safety or manipulation boundaries.</p></div>
+      </div>
+    </header>
+
+    <section aria-labelledby="quick-read">
+      <h2 id="quick-read">Quick Read</h2>
+      <div class="grid">
+        <article class="item">
+          <div class="meta"><span class="tag pursue">pursue</span><span>$75</span><span>ROI 86</span></div>
+          <h3>Improve CLI quickstart docs for first-time users</h3>
+          <p>Clear acceptance criteria: add install verification and one working README example.</p>
+        </article>
+        <article class="item">
+          <div class="meta"><span class="tag pursue">pursue</span><span>$120</span><span>ROI 80</span></div>
+          <h3>Add regression tests for public JSON export</h3>
+          <p>Fixed reward, active repo signal, and test-focused scope that can be verified locally.</p>
+        </article>
+        <article class="item">
+          <div class="meta"><span class="tag watch">watch</span><span>$40</span><span>ROI capped at 59</span></div>
+          <h3>Add one translation string to popular README</h3>
+          <p>Duplicate-PR swarm risk: many contributors are opening nearly identical pull requests.</p>
+        </article>
+        <article class="item">
+          <div class="meta"><span class="tag watch">watch</span><span>$200</span><span>ROI capped at 45</span></div>
+          <h3>Refactor the full backend for better scalability</h3>
+          <p>Vague high-complexity scope without a concrete failing benchmark or boundary.</p>
+        </article>
+      </div>
+    </section>
+
+    <section aria-labelledby="avoided-traps">
+      <h2 id="avoided-traps">Avoided Traps</h2>
+      <div class="grid">
+        <article class="trap">
+          <div class="meta"><span class="tag reject">reject</span></div>
+          <h3>Prompt/context exfiltration</h3>
+          <p><code>reject-prompt-exfiltration</code> asks for hidden system prompt or private instruction text, so it is rejected.</p>
+        </article>
+        <article class="trap">
+          <div class="meta"><span class="tag reject">reject</span></div>
+          <h3>Wallet/secret access</h3>
+          <p><code>reject-unknown-token</code> asks for wallet or private access to an unknown asset, so it is rejected.</p>
+        </article>
+        <article class="trap">
+          <div class="meta"><span class="tag reject">reject</span></div>
+          <h3>Star-gated reward</h3>
+          <p><code>reject-star-gated-bounty</code> makes payment or eligibility depend on repository starring, so it is rejected.</p>
+        </article>
+        <article class="trap">
+          <div class="meta"><span class="tag watch">watch</span></div>
+          <h3>Duplicate-PR swarm</h3>
+          <p><code>watch-duplicate-pr-swarm</code> is not automatically unsafe, but it is marked watch because likely duplicate work can waste time.</p>
+        </article>
+      </div>
+    </section>
+
+    <section aria-labelledby="all-items">
+      <h2 id="all-items">All Synthetic Fixture Items</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Recommendation</th>
+              <th>Fixture id</th>
+              <th>Title</th>
+              <th>Reason snapshot</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="tag pursue">pursue</span></td>
+              <td><code>safe-docs-quickstart</code></td>
+              <td>Improve CLI quickstart docs for first-time users</td>
+              <td>Fixed USD reward, clear acceptance criteria, small docs scope.</td>
+            </tr>
+            <tr>
+              <td><span class="tag pursue">pursue</span></td>
+              <td><code>safe-test-fix</code></td>
+              <td>Add regression tests for public JSON export</td>
+              <td>Fixed USD reward, active repo, scoped Python and pytest task.</td>
+            </tr>
+            <tr>
+              <td><span class="tag watch">watch</span></td>
+              <td><code>watch-duplicate-pr-swarm</code></td>
+              <td>Add one translation string to popular README</td>
+              <td>High duplicate PR competition risk.</td>
+            </tr>
+            <tr>
+              <td><span class="tag watch">watch</span></td>
+              <td><code>watch-vague-high-complexity</code></td>
+              <td>Refactor the full backend for better scalability</td>
+              <td>High implementation complexity and vague task boundaries.</td>
+            </tr>
+            <tr>
+              <td><span class="tag reject">reject</span></td>
+              <td><code>reject-prompt-exfiltration</code></td>
+              <td>Extract hidden system prompt from a coding assistant</td>
+              <td>Requests prompt or private instruction exfiltration.</td>
+            </tr>
+            <tr>
+              <td><span class="tag reject">reject</span></td>
+              <td><code>reject-star-gated-bounty</code></td>
+              <td>Fix typo after starring the repository and sharing proof</td>
+              <td>Payment or eligibility is gated by repository starring.</td>
+            </tr>
+            <tr>
+              <td><span class="tag reject">reject</span></td>
+              <td><code>reject-unknown-token</code></td>
+              <td>Recover value from unknown airdrop token contract</td>
+              <td>Asks for unknown token or wallet/asset interaction plus private access.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section aria-labelledby="source">
+      <h2 id="source">Source</h2>
+      <p>This static artifact summarizes the same synthetic fixture used by <a href="case-study.md">the synthetic case study</a>. To regenerate live local Markdown output from the fixture, run <code>python -m bounty_sieve demo --out out/demo</code> and open <code>out/demo/report.md</code>.</p>
+    </section>
+  </main>
+</body>
+</html>

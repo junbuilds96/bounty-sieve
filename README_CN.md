@@ -24,7 +24,7 @@ python -m bounty_sieve score out/discovered.json --out out/scored.json
 python -m bounty_sieve report out/scored.json --out out/report.md
 ```
 
-当前内置的合成 fixture 会生成 2 个 `pursue`、2 个 `watch` 和 3 个 `reject` 结论，其中包括拒绝提示词/私有指令外泄、钱包或未知资产访问、点星门槛付款。简短的前后对比和报告摘录见[合成案例](examples/case-study.md)。
+当前内置的合成 fixture 会生成 2 个 `pursue`、2 个 `watch` 和 3 个 `reject` 结论，其中包括拒绝提示词/私有指令外泄、钱包或未知资产访问、点星门槛付款。简短的前后对比和报告摘录见[合成案例](examples/case-study.md)，同一 fixture 的快速可视化版本见静态[合成样例报告](examples/synthetic-report.html)。
 
 ## 安全边界
 

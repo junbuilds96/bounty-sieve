@@ -24,7 +24,7 @@ python -m bounty_sieve score out/discovered.json --out out/scored.json
 python -m bounty_sieve report out/scored.json --out out/report.md
 ```
 
-The bundled synthetic fixture currently produces 2 pursue, 2 watch, and 3 reject recommendations, including rejects for prompt/private-instruction exfiltration, wallet or unknown-asset access, and star-gated payment. See the concise [synthetic case study](examples/case-study.md) for the before/after and report excerpt.
+The bundled synthetic fixture currently produces 2 pursue, 2 watch, and 3 reject recommendations, including rejects for prompt/private-instruction exfiltration, wallet or unknown-asset access, and star-gated payment. See the concise [synthetic case study](examples/case-study.md) for the before/after and report excerpt, or open the static [synthetic sample report](examples/synthetic-report.html) for a quick visual read of the same fixture.
 
 ## Safety Boundary
 
