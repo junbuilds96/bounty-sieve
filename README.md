@@ -10,6 +10,22 @@ Bounty Sieve is a small Python CLI for offline-by-default, read-only intake and 
 
 The project is useful as a transparent baseline for evaluating opportunity quality and safety signals before doing any manual work in a browser.
 
+## Value Proof
+
+Problem: bounty-like issues often mix real small tasks with traps: prompt or context exfiltration, wallet or secret requests, star-gated rewards, duplicate-PR swarms, vague scope, and unclear payment terms.
+
+One-liner: Bounty Sieve turns a user-curated opportunity list into a local pursue/watch/reject decision brief before an agent opens a browser, clones code, comments, submits a PR, touches credentials, or connects a wallet.
+
+Quick offline run:
+
+```bash
+python -m bounty_sieve discover --source fixture --out out/discovered.json
+python -m bounty_sieve score out/discovered.json --out out/scored.json
+python -m bounty_sieve report out/scored.json --out out/report.md
+```
+
+The bundled synthetic fixture currently produces 2 pursue, 2 watch, and 3 reject recommendations, including rejects for prompt/private-instruction exfiltration, wallet or unknown-asset access, and star-gated payment. See the concise [synthetic case study](examples/case-study.md) for the before/after and report excerpt.
+
 ## Safety Boundary
 
 This release is intentionally read-only and offline by default. It performs network access only for explicit public URL intake commands, and those commands only fetch public metadata. It does not:

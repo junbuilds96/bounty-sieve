@@ -10,6 +10,22 @@ Bounty Sieve 是一个小型 Python 命令行工具，用来对类似开源悬�
 
 这个项目的定位不是“自动接单工具”，而是一个透明、可审计的基线：在你打开浏览器、投入时间或开始沟通之前，先把机会质量、收益可信度、竞争风险和安全信号摆到台面上。
 
+## 价值证明
+
+问题：类似悬赏的 issue 经常把真实小任务和陷阱混在一起，例如要求提取提示词或上下文、要求钱包或密钥访问、用点星作为付款门槛、大量重复 PR、范围模糊，以及付款条款不清。
+
+一句话：Bounty Sieve 会把用户整理好的机会列表转换成本地 `pursue` / `watch` / `reject` 决策简报，让 agent 在打开浏览器、克隆代码、评论、提交 PR、接触凭据或连接钱包之前先停下来复核。
+
+快速离线运行：
+
+```bash
+python -m bounty_sieve discover --source fixture --out out/discovered.json
+python -m bounty_sieve score out/discovered.json --out out/scored.json
+python -m bounty_sieve report out/scored.json --out out/report.md
+```
+
+当前内置的合成 fixture 会生成 2 个 `pursue`、2 个 `watch` 和 3 个 `reject` 结论，其中包括拒绝提示词/私有指令外泄、钱包或未知资产访问、点星门槛付款。简短的前后对比和报告摘录见[合成案例](examples/case-study.md)。
+
 ## 安全边界
 
 当前版本刻意保持只读，并默认离线。只有在用户明确运行公开 URL 导入命令时才会访问网络，而且只读取公开元数据。它不会：
