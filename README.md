@@ -79,6 +79,7 @@ Run directly from a checkout:
 
 ```bash
 python -m bounty_sieve --help
+python -m bounty_sieve doctor
 ```
 
 After installation, the console script is available:

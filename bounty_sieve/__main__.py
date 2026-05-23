@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import argparse
+import json
 from collections import Counter
 from pathlib import Path
 
 from bounty_sieve import __version__
+from bounty_sieve.doctor import format_doctor_result, run_doctor
 from bounty_sieve.fixtures import load_fixture_opportunities
 from bounty_sieve.github_importer import (
     GitHubImportError,
@@ -64,6 +66,14 @@ def main(argv: list[str] | None = None) -> int:
 
     demo_parser = subparsers.add_parser("demo", help="Run fixture discovery, scoring, and report.")
     demo_parser.add_argument("--out", required=True)
+
+    doctor_parser = subparsers.add_parser("doctor", help="Run local onboarding health checks.")
+    doctor_parser.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="Print machine-readable JSON and no extra prose.",
+    )
 
     args = parser.parse_args(argv)
 
@@ -150,6 +160,14 @@ def main(argv: list[str] | None = None) -> int:
             f"reject={counts.get('reject', 0)}"
         )
         return 0
+
+    if args.command == "doctor":
+        result = run_doctor()
+        if args.json_output:
+            print(json.dumps(result, indent=2, sort_keys=True))
+        else:
+            print(format_doctor_result(result))
+        return 0 if result["ok"] else 1
 
     parser.error(f"unknown command: {args.command}")
     return 2

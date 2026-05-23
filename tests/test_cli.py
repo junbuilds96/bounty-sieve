@@ -7,6 +7,7 @@ import tomllib
 from pathlib import Path
 
 import bounty_sieve
+from bounty_sieve.doctor import run_doctor
 
 
 def run_cli(*args: str) -> subprocess.CompletedProcess[str]:
@@ -60,6 +61,7 @@ def test_cli_help_lists_offline_demo_commands() -> None:
     assert "score" in result.stdout
     assert "report" in result.stdout
     assert "demo" in result.stdout
+    assert "doctor" in result.stdout
 
 
 def test_cli_version_prints_package_version() -> None:
@@ -68,6 +70,42 @@ def test_cli_version_prints_package_version() -> None:
     assert result.returncode == 0
     assert result.stdout == f"bounty-sieve {bounty_sieve.__version__}\n"
     assert result.stderr == ""
+
+
+def test_doctor_reports_success_in_human_output() -> None:
+    result = run_cli("doctor")
+
+    assert result.stderr == ""
+    assert "OK python_version:" in result.stdout
+    assert "OK package_import:" in result.stdout
+    assert "OK minimal_example:" in result.stdout
+    assert "OK fixture_pipeline:" in result.stdout
+    assert result.stdout.endswith("Doctor passed\n")
+
+
+def test_doctor_json_reports_success_without_extra_prose() -> None:
+    result = run_cli("doctor", "--json")
+
+    payload = json.loads(result.stdout)
+    assert result.stderr == ""
+    assert payload["ok"] is True
+    assert {check["name"] for check in payload["checks"]} == {
+        "python_version",
+        "package_import",
+        "minimal_example",
+        "fixture_pipeline",
+    }
+    assert all(check["status"] == "pass" for check in payload["checks"])
+
+
+def test_doctor_reports_representative_failure_for_missing_example(tmp_path: Path) -> None:
+    result = run_doctor(example_path=tmp_path / "missing.json")
+
+    checks = {check["name"]: check for check in result["checks"]}
+    assert result["ok"] is False
+    assert checks["minimal_example"]["status"] == "fail"
+    assert "example file missing" in checks["minimal_example"]["details"]["message"]
+    assert checks["fixture_pipeline"]["status"] == "pass"
 
 
 def test_discover_help_lists_agent_intake_sources() -> None:
