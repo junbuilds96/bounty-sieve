@@ -272,6 +272,37 @@ def test_cli_validate_json_reports_success_payload(tmp_path: Path) -> None:
     assert result.stderr == ""
 
 
+def test_cli_validate_json_reports_invalid_json_as_json(tmp_path: Path) -> None:
+    source = tmp_path / "bad.json"
+    source.write_text('{"opportunities": [', encoding="utf-8")
+
+    result = run_cli_unchecked("validate", "--json", str(source))
+
+    assert result.returncode != 0
+    assert result.stderr == ""
+    payload = json.loads(result.stdout)
+    assert payload["ok"] is False
+    assert "input file is not valid JSON" in payload["error"]
+    assert result.stdout == json.dumps(payload, separators=(",", ":"), sort_keys=True) + "\n"
+
+
+def test_cli_validate_json_reports_schema_errors_as_json(tmp_path: Path) -> None:
+    source = tmp_path / "bad.json"
+    source.write_text(
+        '{"opportunities": [{"title": "Missing id", "summary": "No id."}]}',
+        encoding="utf-8",
+    )
+
+    result = run_cli_unchecked("validate", "--json", str(source))
+
+    assert result.returncode != 0
+    assert result.stderr == ""
+    assert json.loads(result.stdout) == {
+        "ok": False,
+        "error": "opportunities[0].id is required and must be a non-empty string",
+    }
+
+
 def test_minimal_example_validates_and_imports_through_cli(tmp_path: Path) -> None:
     out = tmp_path / "discovered.json"
 

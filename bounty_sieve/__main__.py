@@ -124,6 +124,10 @@ def main(argv: list[str] | None = None) -> int:
         try:
             opportunities = load_json_opportunities(args.input)
         except OpportunityValidationError as exc:
+            if args.json_output:
+                payload = {"ok": False, "error": str(exc)}
+                print(json.dumps(payload, separators=(",", ":"), sort_keys=True))
+                return 2
             validate_parser.error(str(exc))
         ids = ", ".join(item["id"] for item in opportunities) or "(none)"
         if args.json_output:
