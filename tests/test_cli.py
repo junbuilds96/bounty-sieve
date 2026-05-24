@@ -469,6 +469,26 @@ def test_cli_validate_json_reports_schema_errors_as_json(tmp_path: Path) -> None
     }
 
 
+def test_cli_validate_json_rejects_duplicate_ids(tmp_path: Path) -> None:
+    source = tmp_path / "duplicates.json"
+    source.write_text(
+        stdin_opportunities_json("duplicate-id", "duplicate-id"),
+        encoding="utf-8",
+    )
+
+    result = run_cli_unchecked("validate", "--json", str(source))
+
+    assert result.returncode != 0
+    assert result.stderr == ""
+    payload = json.loads(result.stdout)
+    assert payload["ok"] is False
+    assert 'duplicate id "duplicate-id"' in payload["error"]
+    assert "opportunities[0].id" in payload["error"]
+    assert "opportunities[1].id" in payload["error"]
+    assert "earlier index 0" in payload["error"]
+    assert "later index 1" in payload["error"]
+
+
 def test_minimal_example_validates_and_imports_through_cli(tmp_path: Path) -> None:
     out = tmp_path / "discovered.json"
 
@@ -526,6 +546,26 @@ def test_cli_json_import_reports_validation_errors(tmp_path: Path) -> None:
     assert not out.exists()
 
 
+def test_cli_json_import_rejects_duplicate_ids(tmp_path: Path) -> None:
+    source = tmp_path / "duplicates.json"
+    out = tmp_path / "discovered.json"
+    source.write_text(
+        stdin_opportunities_json("duplicate-id", "duplicate-id"),
+        encoding="utf-8",
+    )
+
+    result = run_cli_unchecked(
+        "discover", "--source", "json", "--input", str(source), "--out", str(out)
+    )
+
+    assert result.returncode == 2
+    assert result.stdout == ""
+    assert 'duplicate id "duplicate-id"' in result.stderr
+    assert "opportunities[0].id" in result.stderr
+    assert "opportunities[1].id" in result.stderr
+    assert not out.exists()
+
+
 def test_cli_score_missing_input_fails_without_output(tmp_path: Path) -> None:
     out = tmp_path / "scored.json"
     missing = tmp_path / "missing.json"
@@ -565,6 +605,25 @@ def test_cli_score_unusable_opportunity_list_fails_without_traceback(
     assert result.returncode == 2
     assert result.stdout == ""
     assert 'top-level JSON must be a list or an object with an "opportunities" list' in result.stderr
+    assert "Traceback" not in result.stderr
+    assert not out.exists()
+
+
+def test_cli_score_rejects_duplicate_ids_before_writing(tmp_path: Path) -> None:
+    source = tmp_path / "duplicates.json"
+    out = tmp_path / "scored.json"
+    source.write_text(
+        stdin_opportunities_json("duplicate-id", "duplicate-id"),
+        encoding="utf-8",
+    )
+
+    result = run_cli_unchecked("score", str(source), "--out", str(out))
+
+    assert result.returncode == 2
+    assert result.stdout == ""
+    assert 'duplicate id "duplicate-id"' in result.stderr
+    assert "opportunities[0].id" in result.stderr
+    assert "opportunities[1].id" in result.stderr
     assert "Traceback" not in result.stderr
     assert not out.exists()
 

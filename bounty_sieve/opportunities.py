@@ -65,10 +65,23 @@ def normalize_opportunities(opportunities: list[Any]) -> list[dict[str, Any]]:
     """Validate and normalize opportunity objects already loaded in memory."""
     if not isinstance(opportunities, list):
         raise OpportunityValidationError("opportunities must be a list")
-    return [
-        _normalize_opportunity(item, f"opportunities[{index}]")
-        for index, item in enumerate(opportunities)
-    ]
+
+    normalized: list[dict[str, Any]] = []
+    seen_ids: dict[str, int] = {}
+    for index, item in enumerate(opportunities):
+        path = f"opportunities[{index}]"
+        normalized_item = _normalize_opportunity(item, path)
+        opportunity_id = normalized_item["id"]
+        if opportunity_id in seen_ids:
+            earlier_index = seen_ids[opportunity_id]
+            raise OpportunityValidationError(
+                f'{path}.id duplicate id "{opportunity_id}"; '
+                f"first seen at opportunities[{earlier_index}].id "
+                f"(earlier index {earlier_index}, later index {index})"
+            )
+        seen_ids[opportunity_id] = index
+        normalized.append(normalized_item)
+    return normalized
 
 
 def _extract_opportunity_list(payload: Any) -> list[Any]:
