@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
 
 def read_json(path: str | Path) -> Any:
+    if str(path) == "-":
+        return json.load(sys.stdin)
     with Path(path).open("r", encoding="utf-8") as handle:
         return json.load(handle)
 

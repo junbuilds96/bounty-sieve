@@ -26,12 +26,15 @@ def _subprocess_env() -> dict[str, str]:
     return env
 
 
-def run_cli(*args: str, cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
+def run_cli(
+    *args: str, cwd: Path | None = None, input: str | None = None
+) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, "-m", "bounty_sieve", *args],
         check=True,
         text=True,
         capture_output=True,
+        input=input,
         cwd=cwd,
         env=_subprocess_env() if cwd else None,
     )
@@ -52,6 +55,21 @@ def run_cli_unchecked(
 
 def read_json(path: Path):
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def stdin_opportunities_json(*ids: str) -> str:
+    return json.dumps(
+        {
+            "opportunities": [
+                {
+                    "id": item_id,
+                    "title": f"Fix {item_id}",
+                    "summary": f"Small public task for {item_id}.",
+                }
+                for item_id in ids
+            ]
+        }
+    )
 
 
 def test_package_metadata_uses_bounty_sieve_names() -> None:
@@ -323,6 +341,30 @@ def test_cli_discover_summary_json_prints_machine_readable_stdout_after_writing(
     )
 
 
+def test_cli_discover_json_reads_opportunities_from_stdin_dash_with_summary_json(
+    tmp_path: Path,
+) -> None:
+    out = tmp_path / "discovered.json"
+
+    result = run_cli(
+        "discover",
+        "--source",
+        "json",
+        "--input",
+        "-",
+        "--out",
+        str(out),
+        "--summary-json",
+        input=stdin_opportunities_json("stdin-docs-fix"),
+    )
+
+    assert read_json(out)[0]["id"] == "stdin-docs-fix"
+    assert result.stderr == ""
+    assert result.stdout == (
+        f'{{"ok":true,"output":"{out}","total":1,"ids":["stdin-docs-fix"]}}\n'
+    )
+
+
 def test_cli_validate_reports_opportunity_count_and_ids(tmp_path: Path) -> None:
     source = tmp_path / "opportunities.json"
     source.write_text(
@@ -381,6 +423,18 @@ def test_cli_validate_json_reports_success_payload(tmp_path: Path) -> None:
         "ids": ["user-docs-fix", "user-test-fix"],
         "ok": True,
     }
+    assert result.stderr == ""
+
+
+def test_cli_validate_json_reads_opportunities_from_stdin_dash() -> None:
+    result = run_cli(
+        "validate",
+        "--json",
+        "-",
+        input=stdin_opportunities_json("stdin-docs-fix", "stdin-test-fix"),
+    )
+
+    assert result.stdout == '{"ids":["stdin-docs-fix","stdin-test-fix"],"ok":true,"total":2}\n'
     assert result.stderr == ""
 
 
@@ -581,6 +635,23 @@ def test_score_without_out_prints_compact_json_to_stdout(tmp_path: Path) -> None
         "watch",
         "reject",
     }
+    assert "\n" not in result.stdout.rstrip("\n")
+    assert '": ' not in result.stdout
+    assert ', "' not in result.stdout
+
+
+def test_score_stdin_dash_without_out_prints_compact_json_to_stdout() -> None:
+    result = run_cli(
+        "score",
+        "-",
+        input=stdin_opportunities_json("stdin-docs-fix"),
+    )
+
+    payload = json.loads(result.stdout)
+    assert result.stderr == ""
+    assert len(payload) == 1
+    assert payload[0]["id"] == "stdin-docs-fix"
+    assert "score" in payload[0]
     assert "\n" not in result.stdout.rstrip("\n")
     assert '": ' not in result.stdout
     assert ', "' not in result.stdout
