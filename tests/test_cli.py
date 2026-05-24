@@ -380,6 +380,80 @@ def test_sample_opportunities_json_imports_and_scores(tmp_path: Path) -> None:
     assert recommendations["reject-wallet-connection"] == "reject"
 
 
+def test_score_default_stdout_stays_silent(tmp_path: Path) -> None:
+    discovered = tmp_path / "opportunities.json"
+    scored = tmp_path / "scored.json"
+    run_cli("discover", "--source", "fixture", "--out", str(discovered))
+
+    result = run_cli("score", str(discovered), "--out", str(scored))
+
+    assert scored.exists()
+    assert result.stdout == ""
+    assert result.stderr == ""
+
+
+def test_score_summary_prints_concise_stdout_after_writing(tmp_path: Path) -> None:
+    discovered = tmp_path / "opportunities.json"
+    scored = tmp_path / "scored.json"
+    run_cli("discover", "--source", "fixture", "--out", str(discovered))
+
+    result = run_cli("score", str(discovered), "--out", str(scored), "--summary")
+
+    assert scored.exists()
+    assert result.stderr == ""
+    assert result.stdout == (
+        f"Output: {scored}\n"
+        "Total: 7\n"
+        "Recommendations: pursue=2, watch=2, reject=3\n"
+        "Summary: Bounty Sieve reviewed 7 opportunities: 2 look worth manual verification, "
+        "2 need caution before spending time, and 3 should be rejected under the current safety rules.\n"
+    )
+
+
+def test_score_summary_json_prints_machine_readable_stdout_after_writing(
+    tmp_path: Path,
+) -> None:
+    discovered = tmp_path / "opportunities.json"
+    scored = tmp_path / "scored.json"
+    run_cli("discover", "--source", "fixture", "--out", str(discovered))
+
+    result = run_cli("score", str(discovered), "--out", str(scored), "--summary-json")
+
+    assert scored.exists()
+    assert result.stderr == ""
+    assert json.loads(result.stdout) == {
+        "ok": True,
+        "output": str(scored),
+        "total": 7,
+        "recommendations": {"pursue": 2, "watch": 2, "reject": 3},
+        "summary": (
+            "Bounty Sieve reviewed 7 opportunities: 2 look worth manual verification, "
+            "2 need caution before spending time, and 3 should be rejected under the current safety rules."
+        ),
+    }
+    assert result.stdout == (
+        f'{{"ok":true,"output":"{scored}","total":7,'
+        '"recommendations":{"pursue":2,"watch":2,"reject":3},'
+        '"summary":"Bounty Sieve reviewed 7 opportunities: 2 look worth manual verification, '
+        '2 need caution before spending time, and 3 should be rejected under the current safety rules."}\n'
+    )
+
+
+def test_score_summary_flags_are_mutually_exclusive(tmp_path: Path) -> None:
+    discovered = tmp_path / "opportunities.json"
+    scored = tmp_path / "scored.json"
+    discovered.write_text("[]", encoding="utf-8")
+
+    result = run_cli_unchecked(
+        "score", str(discovered), "--out", str(scored), "--summary", "--summary-json"
+    )
+
+    assert result.returncode == 2
+    assert result.stdout == ""
+    assert "not allowed with argument --summary" in result.stderr
+    assert not scored.exists()
+
+
 def test_scoring_rules_are_deterministic_and_transparent(tmp_path: Path) -> None:
     discovered = tmp_path / "opportunities.json"
     scored_path = tmp_path / "scored.json"

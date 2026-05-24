@@ -63,6 +63,42 @@ def render_stdout_summary_json(
     return json.dumps(payload, sort_keys=True)
 
 
+def render_score_stdout_summary(
+    scored_opportunities: list[dict[str, Any]], output_path: str | Path
+) -> str:
+    summary = summarize_report(scored_opportunities)
+    return "\n".join(
+        [
+            f"Output: {output_path}",
+            f"Total: {summary.total}",
+            (
+                "Recommendations: "
+                f"pursue={summary.counts.get('pursue', 0)}, "
+                f"watch={summary.counts.get('watch', 0)}, "
+                f"reject={summary.counts.get('reject', 0)}"
+            ),
+            f"Summary: {summary.sentence}",
+        ]
+    )
+
+
+def render_score_stdout_summary_json(
+    scored_opportunities: list[dict[str, Any]], output_path: str | Path
+) -> str:
+    summary = summarize_report(scored_opportunities)
+    payload = {
+        "ok": True,
+        "output": str(output_path),
+        "total": summary.total,
+        "recommendations": {
+            recommendation: summary.counts.get(recommendation, 0)
+            for recommendation in RECOMMENDATION_ORDER
+        },
+        "summary": summary.sentence,
+    }
+    return json.dumps(payload, separators=(",", ":"))
+
+
 def render_report(scored_opportunities: list[dict[str, Any]]) -> str:
     summary = summarize_report(scored_opportunities)
     counts = summary.counts
