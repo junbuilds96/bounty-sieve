@@ -60,6 +60,17 @@ def main(argv: list[str] | None = None) -> int:
     discover_parser.add_argument("--input", help="Path to a user-provided JSON opportunity file.")
     discover_parser.add_argument("--url", help="Public GitHub issue URL for --source github-issue.")
     discover_parser.add_argument("--out", required=True)
+    discover_summary_group = discover_parser.add_mutually_exclusive_group()
+    discover_summary_group.add_argument(
+        "--summary",
+        action="store_true",
+        help="Print output path, opportunity count, and IDs after writing.",
+    )
+    discover_summary_group.add_argument(
+        "--summary-json",
+        action="store_true",
+        help="Print machine-readable discover summary JSON after writing.",
+    )
 
     score_parser = subparsers.add_parser("score", help="Score discovered opportunities.")
     score_parser.add_argument("input")
@@ -147,6 +158,10 @@ def main(argv: list[str] | None = None) -> int:
                 discover_parser.error(f"could not read input file {args.input}: {exc}")
             emit_warnings(warnings)
         write_json(args.out, opportunities)
+        if args.summary:
+            print(_render_discover_summary(opportunities, args.out))
+        if args.summary_json:
+            print(_render_discover_summary_json(opportunities, args.out))
         return 0
 
     if args.command == "score":
@@ -197,6 +212,27 @@ def main(argv: list[str] | None = None) -> int:
 
     parser.error(f"unknown command: {args.command}")
     return 2
+
+
+def _render_discover_summary(opportunities: list[dict], output_path: str | Path) -> str:
+    ids = [item["id"] for item in opportunities]
+    return "\n".join(
+        [
+            f"Output: {output_path}",
+            f"Total: {len(opportunities)}",
+            f"IDs: {', '.join(ids) or '(none)'}",
+        ]
+    )
+
+
+def _render_discover_summary_json(opportunities: list[dict], output_path: str | Path) -> str:
+    payload = {
+        "ok": True,
+        "output": str(output_path),
+        "total": len(opportunities),
+        "ids": [item["id"] for item in opportunities],
+    }
+    return json.dumps(payload, separators=(",", ":"))
 
 
 if __name__ == "__main__":

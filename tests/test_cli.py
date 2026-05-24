@@ -155,14 +155,60 @@ def test_cli_imports_user_json_opportunities(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    run_cli("discover", "--source", "json", "--input", str(source), "--out", str(out))
+    result = run_cli("discover", "--source", "json", "--input", str(source), "--out", str(out))
 
     opportunities = read_json(out)
+    assert result.stdout == ""
+    assert result.stderr == ""
     assert opportunities[0]["id"] == "user-docs-fix"
     assert opportunities[0]["source"] == "json"
     assert opportunities[0]["reward"]["currency"] == "USD"
     assert opportunities[0]["signals"]["requires_secret_access"] is False
     assert opportunities[0]["signals"]["acceptance_criteria"] == []
+
+
+def test_cli_discover_summary_json_prints_machine_readable_stdout_after_writing(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "opportunities.json"
+    out = tmp_path / "discovered.json"
+    source.write_text(
+        json.dumps(
+            {
+                "opportunities": [
+                    {
+                        "id": "user-docs-fix",
+                        "title": "Clarify public setup docs",
+                        "summary": "Add a verification command to public setup docs.",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = run_cli(
+        "discover",
+        "--source",
+        "json",
+        "--input",
+        str(source),
+        "--out",
+        str(out),
+        "--summary-json",
+    )
+
+    assert out.exists()
+    assert result.stderr == ""
+    assert json.loads(result.stdout) == {
+        "ok": True,
+        "output": str(out),
+        "total": 1,
+        "ids": ["user-docs-fix"],
+    }
+    assert result.stdout == (
+        f'{{"ok":true,"output":"{out}","total":1,"ids":["user-docs-fix"]}}\n'
+    )
 
 
 def test_cli_validate_reports_opportunity_count_and_ids(tmp_path: Path) -> None:
