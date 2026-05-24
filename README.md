@@ -189,6 +189,8 @@ Score discovered opportunities:
 python -m bounty_sieve score out/discovered.json --out out/scored.json
 ```
 
+Omit `--out` to print the full scored opportunity list as compact JSON to stdout for automation.
+
 Render a Markdown report:
 
 ```bash

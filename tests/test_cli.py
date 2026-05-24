@@ -392,6 +392,35 @@ def test_score_default_stdout_stays_silent(tmp_path: Path) -> None:
     assert result.stderr == ""
 
 
+def test_score_without_out_prints_compact_json_to_stdout(tmp_path: Path) -> None:
+    discovered = tmp_path / "opportunities.json"
+    run_cli("discover", "--source", "fixture", "--out", str(discovered))
+
+    result = run_cli("score", str(discovered))
+
+    payload = json.loads(result.stdout)
+    assert result.stderr == ""
+    assert len(payload) == 7
+    assert {item["score"]["recommendation"] for item in payload} == {
+        "pursue",
+        "watch",
+        "reject",
+    }
+    assert "\n" not in result.stdout.rstrip("\n")
+    assert '": ' not in result.stdout
+    assert ', "' not in result.stdout
+
+
+def test_score_without_out_does_not_write_output_file(tmp_path: Path) -> None:
+    discovered = tmp_path / "opportunities.json"
+    run_cli("discover", "--source", "fixture", "--out", str(discovered))
+
+    result = run_cli("score", str(discovered))
+
+    assert result.stderr == ""
+    assert sorted(path.name for path in tmp_path.iterdir()) == ["opportunities.json"]
+
+
 def test_score_summary_prints_concise_stdout_after_writing(tmp_path: Path) -> None:
     discovered = tmp_path / "opportunities.json"
     scored = tmp_path / "scored.json"
@@ -452,6 +481,30 @@ def test_score_summary_flags_are_mutually_exclusive(tmp_path: Path) -> None:
     assert result.stdout == ""
     assert "not allowed with argument --summary" in result.stderr
     assert not scored.exists()
+
+
+def test_score_summary_requires_out(tmp_path: Path) -> None:
+    discovered = tmp_path / "opportunities.json"
+    discovered.write_text("[]", encoding="utf-8")
+
+    result = run_cli_unchecked("score", str(discovered), "--summary")
+
+    assert result.returncode == 2
+    assert result.stdout == ""
+    assert "--summary and --summary-json require --out" in result.stderr
+    assert sorted(path.name for path in tmp_path.iterdir()) == ["opportunities.json"]
+
+
+def test_score_summary_json_requires_out(tmp_path: Path) -> None:
+    discovered = tmp_path / "opportunities.json"
+    discovered.write_text("[]", encoding="utf-8")
+
+    result = run_cli_unchecked("score", str(discovered), "--summary-json")
+
+    assert result.returncode == 2
+    assert result.stdout == ""
+    assert "--summary and --summary-json require --out" in result.stderr
+    assert sorted(path.name for path in tmp_path.iterdir()) == ["opportunities.json"]
 
 
 def test_scoring_rules_are_deterministic_and_transparent(tmp_path: Path) -> None:

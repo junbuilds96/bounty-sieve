@@ -76,7 +76,10 @@ def main(argv: list[str] | None = None) -> int:
 
     score_parser = subparsers.add_parser("score", help="Score discovered opportunities.")
     score_parser.add_argument("input")
-    score_parser.add_argument("--out", required=True)
+    score_parser.add_argument(
+        "--out",
+        help="Write scored JSON to this path. Omit to print compact JSON to stdout.",
+    )
     score_summary_group = score_parser.add_mutually_exclusive_group()
     score_summary_group.add_argument(
         "--summary",
@@ -178,7 +181,14 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "score":
+        if not args.out and (args.summary or args.summary_json):
+            score_parser.error(
+                "--summary and --summary-json require --out because they summarize a written file"
+            )
         scored = score_opportunities(read_json(args.input))
+        if not args.out:
+            print(json.dumps(scored, separators=(",", ":"), sort_keys=True))
+            return 0
         write_json(args.out, scored)
         if args.summary:
             print(render_score_stdout_summary(scored, args.out))
