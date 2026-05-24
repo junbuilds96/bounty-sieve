@@ -69,7 +69,10 @@ def main(argv: list[str] | None = None) -> int:
     discover_parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Preview one public GitHub issue as compact JSON without writing files.",
+        help=(
+            "Preview github-issue or url-list imports as compact JSON without "
+            "requiring --out or writing files."
+        ),
     )
     discover_summary_group = discover_parser.add_mutually_exclusive_group()
     discover_summary_group.add_argument(
@@ -157,8 +160,10 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "discover":
-        if args.dry_run and args.source != "github-issue":
-            discover_parser.error("--dry-run can only be used with --source github-issue")
+        if args.dry_run and args.source not in {"github-issue", "url-list"}:
+            discover_parser.error(
+                "--dry-run can only be used with --source github-issue or --source url-list"
+            )
         if args.dry_run and (args.summary or args.summary_json):
             discover_parser.error("--summary and --summary-json cannot be used with --dry-run")
         if not args.dry_run and not args.out:
@@ -200,6 +205,13 @@ def main(argv: list[str] | None = None) -> int:
             except OSError as exc:
                 discover_parser.error(f"could not read input file {args.input}: {exc}")
             emit_warnings(warnings)
+            if args.dry_run:
+                try:
+                    opportunities = normalize_opportunities(opportunities)
+                except OpportunityValidationError as exc:
+                    discover_parser.error(str(exc))
+                print(json.dumps(opportunities, separators=(",", ":"), sort_keys=True))
+                return 0
         write_json(args.out, opportunities)
         if args.summary:
             print(_render_discover_summary(opportunities, args.out))

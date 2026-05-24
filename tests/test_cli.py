@@ -183,6 +183,7 @@ def test_discover_help_lists_agent_intake_sources() -> None:
     assert "url-list" in result.stdout
     assert "read-only public" in result.stdout
     assert "URL fetches" in result.stdout
+    assert "Preview github-issue or url-list imports" in result.stdout
 
 
 def test_cli_rejects_invalid_fixture_source(tmp_path: Path) -> None:
@@ -264,14 +265,102 @@ def test_cli_github_issue_dry_run_prints_normalized_json_without_writing(
     assert list(tmp_path.iterdir()) == []
 
 
-def test_cli_dry_run_is_only_valid_for_github_issue(tmp_path: Path) -> None:
-    for source in ("fixture", "json", "url-list"):
+def test_cli_url_list_dry_run_prints_normalized_json_without_out_and_keeps_warnings_on_stderr(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    urls = tmp_path / "urls.txt"
+    out = tmp_path / "discovered.json"
+    urls.write_text(
+        "\n".join(
+            [
+                "https://github.com/example/widgets/issues/42",
+                "https://example.com/bounty/1",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    def fake_import_url_list(path: str) -> tuple[list[dict], list[str]]:
+        return (
+            [
+                {
+                    "id": "github-example-widgets-42",
+                    "title": "Fix README install step",
+                    "summary": "Document the missing CLI install command.",
+                    "url": "https://github.com/example/widgets/issues/42",
+                    "platform": "github",
+                    "repo": "example/widgets",
+                    "source": "github-issue",
+                    "labels": ["documentation"],
+                    "reward": {"amount": 125, "currency": "usd", "type": "fixed"},
+                }
+            ],
+            [f"{path}:2: skipped unsupported URL: https://example.com/bounty/1"],
+        )
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("bounty_sieve.__main__.import_url_list", fake_import_url_list)
+
+    result = cli_main(
+        [
+            "discover",
+            "--source",
+            "url-list",
+            "--input",
+            str(urls),
+            "--dry-run",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    assert result == 0
+    assert captured.err == (
+        f"warning: {urls}:2: skipped unsupported URL: https://example.com/bounty/1\n"
+    )
+    assert payload == [
+        {
+            "id": "github-example-widgets-42",
+            "title": "Fix README install step",
+            "summary": "Document the missing CLI install command.",
+            "url": "https://github.com/example/widgets/issues/42",
+            "platform": "github",
+            "repo": "example/widgets",
+            "source": "github-issue",
+            "labels": ["documentation"],
+            "reward": {"amount": 125, "currency": "USD", "type": "fixed"},
+            "signals": {
+                "requires_secret_access": False,
+                "requires_prompt_exfiltration": False,
+                "requires_token_or_unknown_asset": False,
+                "star_gated": False,
+                "duplicate_pr_swarm": False,
+                "clarity": "unknown",
+                "repo_activity": "unknown",
+                "competition": "unknown",
+                "complexity": "unknown",
+                "tech": [],
+                "scope": "unknown",
+                "acceptance_criteria": [],
+            },
+        }
+    ]
+    assert captured.out == json.dumps(payload, separators=(",", ":"), sort_keys=True) + "\n"
+    assert not out.exists()
+    assert sorted(path.name for path in tmp_path.iterdir()) == ["urls.txt"]
+
+
+def test_cli_dry_run_is_only_valid_for_github_issue_or_url_list(tmp_path: Path) -> None:
+    for source in ("fixture", "json"):
         out = tmp_path / f"{source}.json"
 
         result = run_cli_unchecked("discover", "--source", source, "--out", str(out), "--dry-run")
 
         assert result.returncode == 2
-        assert "--dry-run can only be used with --source github-issue" in result.stderr
+        assert (
+            "--dry-run can only be used with --source github-issue or --source url-list"
+            in result.stderr
+        )
         assert result.stdout == ""
         assert not out.exists()
 
