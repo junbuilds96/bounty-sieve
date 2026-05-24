@@ -366,8 +366,40 @@ def test_cli_score_missing_input_fails_without_output(tmp_path: Path) -> None:
 
     result = run_cli_unchecked("score", str(missing), "--out", str(out))
 
-    assert result.returncode != 0
-    assert "No such file or directory" in result.stderr
+    assert result.returncode == 2
+    assert result.stdout == ""
+    assert "bounty-sieve score: error: input file not found:" in result.stderr
+    assert "Traceback" not in result.stderr
+    assert not out.exists()
+
+
+def test_cli_score_invalid_json_fails_without_traceback(tmp_path: Path) -> None:
+    source = tmp_path / "bad.json"
+    out = tmp_path / "scored.json"
+    source.write_text("{not json", encoding="utf-8")
+
+    result = run_cli_unchecked("score", str(source), "--out", str(out))
+
+    assert result.returncode == 2
+    assert result.stdout == ""
+    assert "bounty-sieve score: error: input file is not valid JSON:" in result.stderr
+    assert "Traceback" not in result.stderr
+    assert not out.exists()
+
+
+def test_cli_score_unusable_opportunity_list_fails_without_traceback(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "bad.json"
+    out = tmp_path / "scored.json"
+    source.write_text('{"items": []}', encoding="utf-8")
+
+    result = run_cli_unchecked("score", str(source), "--out", str(out))
+
+    assert result.returncode == 2
+    assert result.stdout == ""
+    assert 'top-level JSON must be a list or an object with an "opportunities" list' in result.stderr
+    assert "Traceback" not in result.stderr
     assert not out.exists()
 
 
@@ -600,6 +632,20 @@ def test_report_rendering_includes_required_sections(tmp_path: Path) -> None:
     assert "## Clear Reject/Watch Reasons" in markdown
     assert "prompt or private instruction exfiltration" in markdown
     assert "## Next Actions" in markdown
+
+
+def test_report_invalid_json_fails_without_traceback(tmp_path: Path) -> None:
+    scored = tmp_path / "scored.json"
+    report = tmp_path / "report.md"
+    scored.write_text("{not json", encoding="utf-8")
+
+    result = run_cli_unchecked("report", str(scored), "--out", str(report))
+
+    assert result.returncode == 2
+    assert result.stdout == ""
+    assert "bounty-sieve report: error: input file is not valid JSON:" in result.stderr
+    assert "Traceback" not in result.stderr
+    assert not report.exists()
 
 
 def test_report_summary_prints_concise_stdout_after_writing(tmp_path: Path) -> None:

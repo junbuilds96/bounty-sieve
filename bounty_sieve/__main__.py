@@ -189,7 +189,11 @@ def main(argv: list[str] | None = None) -> int:
             score_parser.error(
                 "--summary and --summary-json require --out because they summarize a written file"
             )
-        scored = score_opportunities(read_json(args.input))
+        try:
+            opportunities = load_json_opportunities(args.input)
+        except OpportunityValidationError as exc:
+            score_parser.error(str(exc))
+        scored = score_opportunities(opportunities)
         if not args.out:
             print(json.dumps(scored, separators=(",", ":"), sort_keys=True))
             return 0
@@ -201,7 +205,14 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "report":
-        scored = read_json(args.input)
+        try:
+            scored = read_json(args.input)
+        except FileNotFoundError:
+            report_parser.error(f"input file not found: {args.input}")
+        except OSError as exc:
+            report_parser.error(f"could not read input file {args.input}: {exc}")
+        except ValueError as exc:
+            report_parser.error(f"input file is not valid JSON: {exc}")
         report = render_report(scored)
         write_text(args.out, report)
         if args.summary:
