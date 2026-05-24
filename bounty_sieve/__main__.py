@@ -39,6 +39,12 @@ def main(argv: list[str] | None = None) -> int:
     validate_parser = subparsers.add_parser(
         "validate", help="Validate a local JSON opportunity file."
     )
+    validate_parser.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="Print machine-readable JSON and no extra prose.",
+    )
     validate_parser.add_argument("input", help="Path to a user-provided JSON opportunity file.")
 
     discover_parser = subparsers.add_parser("discover", help="Discover opportunities.")
@@ -93,6 +99,14 @@ def main(argv: list[str] | None = None) -> int:
         except OpportunityValidationError as exc:
             validate_parser.error(str(exc))
         ids = ", ".join(item["id"] for item in opportunities) or "(none)"
+        if args.json_output:
+            payload = {
+                "total": len(opportunities),
+                "ids": [item["id"] for item in opportunities],
+                "ok": True,
+            }
+            print(json.dumps(payload, separators=(",", ":"), sort_keys=True))
+            return 0
         noun = "opportunity" if len(opportunities) == 1 else "opportunities"
         print(f"Validated {len(opportunities)} {noun}: {ids}")
         return 0

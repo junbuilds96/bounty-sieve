@@ -193,6 +193,39 @@ def test_cli_validate_reports_opportunity_count_and_ids(tmp_path: Path) -> None:
     assert result.stderr == ""
 
 
+def test_cli_validate_json_reports_success_payload(tmp_path: Path) -> None:
+    source = tmp_path / "opportunities.json"
+    source.write_text(
+        json.dumps(
+            {
+                "opportunities": [
+                    {
+                        "id": "user-docs-fix",
+                        "title": "Clarify public setup docs",
+                        "summary": "Add a verification command to public setup docs.",
+                    },
+                    {
+                        "id": "user-test-fix",
+                        "title": "Fix flaky public test",
+                        "summary": "Stabilize a deterministic unit test.",
+                    },
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = run_cli("validate", "--json", str(source))
+
+    assert result.stdout == '{"ids":["user-docs-fix","user-test-fix"],"ok":true,"total":2}\n'
+    assert json.loads(result.stdout) == {
+        "total": 2,
+        "ids": ["user-docs-fix", "user-test-fix"],
+        "ok": True,
+    }
+    assert result.stderr == ""
+
+
 def test_minimal_example_validates_and_imports_through_cli(tmp_path: Path) -> None:
     out = tmp_path / "discovered.json"
 
