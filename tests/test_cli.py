@@ -620,6 +620,20 @@ def test_cli_score_invalid_json_fails_without_traceback(tmp_path: Path) -> None:
     assert not out.exists()
 
 
+def test_cli_score_reports_field_level_validation_errors_without_output(tmp_path: Path) -> None:
+    source = tmp_path / "bad.json"
+    out = tmp_path / "scored.json"
+    source.write_text('{"opportunities": [{"title": "Missing id", "summary": "No id."}]}', encoding="utf-8")
+
+    result = run_cli_unchecked("score", str(source), "--out", str(out))
+
+    assert result.returncode == 2
+    assert result.stdout == ""
+    assert "opportunities[0].id is required" in result.stderr
+    assert "Traceback" not in result.stderr
+    assert not out.exists()
+
+
 def test_cli_score_unusable_opportunity_list_fails_without_traceback(
     tmp_path: Path,
 ) -> None:
