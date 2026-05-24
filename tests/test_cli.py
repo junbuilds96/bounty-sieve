@@ -138,6 +138,33 @@ def test_doctor_json_reports_success_without_extra_prose() -> None:
     assert all(check["status"] == "pass" for check in payload["checks"])
 
 
+def test_doctor_accepts_user_example_file_through_cli(tmp_path: Path) -> None:
+    example = tmp_path / "user-opportunities.json"
+    example.write_text(stdin_opportunities_json("user-example"), encoding="utf-8")
+
+    result = run_cli("doctor", "--example", str(example))
+
+    assert result.stderr == ""
+    assert "OK minimal_example:" in result.stdout
+    assert f"1 opportunity validated from {example}" in result.stdout
+    assert "Doctor passed\n" in result.stdout
+
+
+def test_doctor_json_reports_missing_user_example_through_cli(tmp_path: Path) -> None:
+    example = tmp_path / "missing-opportunities.json"
+
+    result = run_cli_unchecked("doctor", "--example", str(example), "--json")
+
+    payload = json.loads(result.stdout)
+    checks = {check["name"]: check for check in payload["checks"]}
+    assert result.returncode == 1
+    assert result.stderr == ""
+    assert payload["ok"] is False
+    assert checks["minimal_example"]["status"] == "fail"
+    assert checks["minimal_example"]["details"]["message"] == f"example file missing: {example}"
+    assert checks["fixture_pipeline"]["status"] == "pass"
+
+
 def test_doctor_reports_representative_failure_for_missing_example(tmp_path: Path) -> None:
     result = run_doctor(example_path=tmp_path / "missing.json")
 

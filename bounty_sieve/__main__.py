@@ -126,6 +126,11 @@ def main(argv: list[str] | None = None) -> int:
         dest="json_output",
         help="Print machine-readable JSON and no extra prose.",
     )
+    doctor_parser.add_argument(
+        "--example",
+        metavar="PATH",
+        help="Path to a user-provided JSON opportunity file for the minimal_example check.",
+    )
 
     args = parser.parse_args(argv)
 
@@ -270,7 +275,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "doctor":
-        result = run_doctor()
+        result = run_doctor(example_path=args.example)
         if args.json_output:
             print(json.dumps(result, indent=2, sort_keys=True))
         else:
