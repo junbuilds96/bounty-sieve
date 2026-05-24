@@ -205,6 +205,10 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "report":
+        if args.out == "-" and (args.summary or args.summary_json):
+            report_parser.error(
+                "--summary and --summary-json cannot be used with --out - because stdout is reserved for the report"
+            )
         try:
             scored = read_json(args.input)
         except FileNotFoundError:
@@ -214,6 +218,9 @@ def main(argv: list[str] | None = None) -> int:
         except ValueError as exc:
             report_parser.error(f"input file is not valid JSON: {exc}")
         report = render_report(scored)
+        if args.out == "-":
+            print(report, end="")
+            return 0
         write_text(args.out, report)
         if args.summary:
             print(render_stdout_summary(scored, args.out))

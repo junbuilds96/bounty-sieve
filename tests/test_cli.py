@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import tomllib
@@ -10,21 +11,41 @@ import bounty_sieve
 from bounty_sieve.doctor import run_doctor
 
 
-def run_cli(*args: str) -> subprocess.CompletedProcess[str]:
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _subprocess_env() -> dict[str, str]:
+    env = os.environ.copy()
+    existing_pythonpath = env.get("PYTHONPATH")
+    env["PYTHONPATH"] = (
+        str(REPO_ROOT)
+        if not existing_pythonpath
+        else f"{REPO_ROOT}{os.pathsep}{existing_pythonpath}"
+    )
+    return env
+
+
+def run_cli(*args: str, cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, "-m", "bounty_sieve", *args],
         check=True,
         text=True,
         capture_output=True,
+        cwd=cwd,
+        env=_subprocess_env() if cwd else None,
     )
 
 
-def run_cli_unchecked(*args: str) -> subprocess.CompletedProcess[str]:
+def run_cli_unchecked(
+    *args: str, cwd: Path | None = None
+) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, "-m", "bounty_sieve", *args],
         check=False,
         text=True,
         capture_output=True,
+        cwd=cwd,
+        env=_subprocess_env() if cwd else None,
     )
 
 
@@ -634,6 +655,23 @@ def test_report_rendering_includes_required_sections(tmp_path: Path) -> None:
     assert "## Next Actions" in markdown
 
 
+def test_report_out_dash_writes_markdown_to_stdout_without_dash_file(
+    tmp_path: Path,
+) -> None:
+    discovered = tmp_path / "opportunities.json"
+    scored = tmp_path / "scored.json"
+    run_cli("discover", "--source", "fixture", "--out", str(discovered))
+    run_cli("score", str(discovered), "--out", str(scored))
+
+    result = run_cli("report", str(scored), "--out", "-", cwd=tmp_path)
+
+    assert result.stderr == ""
+    assert "# Bounty Sieve Decision Brief" in result.stdout
+    assert "## Plain-Language Summary" in result.stdout
+    assert "- pursue: 2" in result.stdout
+    assert not (tmp_path / "-").exists()
+
+
 def test_report_invalid_json_fails_without_traceback(tmp_path: Path) -> None:
     scored = tmp_path / "scored.json"
     report = tmp_path / "report.md"
@@ -712,6 +750,38 @@ def test_report_summary_flags_are_mutually_exclusive(tmp_path: Path) -> None:
     assert result.stdout == ""
     assert "not allowed with argument --summary" in result.stderr
     assert not report.exists()
+
+
+def test_report_out_dash_rejects_summary_to_keep_stdout_report_only(
+    tmp_path: Path,
+) -> None:
+    scored = tmp_path / "scored.json"
+    scored.write_text("[]", encoding="utf-8")
+
+    result = run_cli_unchecked(
+        "report", str(scored), "--out", "-", "--summary", cwd=tmp_path
+    )
+
+    assert result.returncode == 2
+    assert result.stdout == ""
+    assert "cannot be used with --out -" in result.stderr
+    assert not (tmp_path / "-").exists()
+
+
+def test_report_out_dash_rejects_summary_json_to_keep_stdout_report_only(
+    tmp_path: Path,
+) -> None:
+    scored = tmp_path / "scored.json"
+    scored.write_text("[]", encoding="utf-8")
+
+    result = run_cli_unchecked(
+        "report", str(scored), "--out", "-", "--summary-json", cwd=tmp_path
+    )
+
+    assert result.returncode == 2
+    assert result.stdout == ""
+    assert "cannot be used with --out -" in result.stderr
+    assert not (tmp_path / "-").exists()
 
 
 def test_demo_outputs_all_artifacts(tmp_path: Path) -> None:
