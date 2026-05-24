@@ -8,6 +8,7 @@ import tomllib
 from pathlib import Path
 
 import bounty_sieve
+from bounty_sieve.__main__ import main as cli_main
 from bounty_sieve.doctor import run_doctor
 
 
@@ -147,6 +148,96 @@ def test_cli_rejects_invalid_fixture_source(tmp_path: Path) -> None:
     assert result.returncode == 2
     assert "invalid choice" in result.stderr
     assert not out.exists()
+
+
+def test_cli_github_issue_dry_run_prints_normalized_json_without_writing(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    out = tmp_path / "should-not-exist.json"
+    url = "https://github.com/example/widgets/issues/42"
+
+    def fake_import(import_url: str) -> dict:
+        return {
+            "id": "github-example-widgets-42",
+            "title": "Fix README install step",
+            "summary": "Document the missing CLI install command.",
+            "url": import_url,
+            "platform": "github",
+            "repo": "example/widgets",
+            "source": "github-issue",
+            "labels": ["documentation"],
+            "reward": {"amount": 125, "currency": "usd", "type": "fixed"},
+        }
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("bounty_sieve.__main__.import_github_issue_url", fake_import)
+
+    result = cli_main(
+        [
+            "discover",
+            "--source",
+            "github-issue",
+            "--url",
+            url,
+            "--dry-run",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    assert result == 0
+    assert captured.err == ""
+    assert payload == [
+        {
+            "id": "github-example-widgets-42",
+            "title": "Fix README install step",
+            "summary": "Document the missing CLI install command.",
+            "url": url,
+            "platform": "github",
+            "repo": "example/widgets",
+            "source": "github-issue",
+            "labels": ["documentation"],
+            "reward": {"amount": 125, "currency": "USD", "type": "fixed"},
+            "signals": {
+                "requires_secret_access": False,
+                "requires_prompt_exfiltration": False,
+                "requires_token_or_unknown_asset": False,
+                "star_gated": False,
+                "duplicate_pr_swarm": False,
+                "clarity": "unknown",
+                "repo_activity": "unknown",
+                "competition": "unknown",
+                "complexity": "unknown",
+                "tech": [],
+                "scope": "unknown",
+                "acceptance_criteria": [],
+            },
+        }
+    ]
+    assert captured.out == json.dumps(payload, separators=(",", ":"), sort_keys=True) + "\n"
+    assert not out.exists()
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_cli_dry_run_is_only_valid_for_github_issue(tmp_path: Path) -> None:
+    for source in ("fixture", "json", "url-list"):
+        out = tmp_path / f"{source}.json"
+
+        result = run_cli_unchecked("discover", "--source", source, "--out", str(out), "--dry-run")
+
+        assert result.returncode == 2
+        assert "--dry-run can only be used with --source github-issue" in result.stderr
+        assert result.stdout == ""
+        assert not out.exists()
+
+
+def test_cli_discover_still_requires_out_without_dry_run(tmp_path: Path) -> None:
+    result = run_cli_unchecked("discover", "--source", "fixture", cwd=tmp_path)
+
+    assert result.returncode == 2
+    assert "the following arguments are required: --out" in result.stderr
+    assert result.stdout == ""
+    assert list(tmp_path.iterdir()) == []
 
 
 def test_cli_imports_user_json_opportunities(tmp_path: Path) -> None:

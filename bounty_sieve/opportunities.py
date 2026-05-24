@@ -58,6 +58,13 @@ def load_json_opportunities(path: str | Path) -> list[dict[str, Any]]:
         raise OpportunityValidationError(f"input file is not valid JSON: {exc}") from exc
 
     opportunities = _extract_opportunity_list(payload)
+    return normalize_opportunities(opportunities)
+
+
+def normalize_opportunities(opportunities: list[Any]) -> list[dict[str, Any]]:
+    """Validate and normalize opportunity objects already loaded in memory."""
+    if not isinstance(opportunities, list):
+        raise OpportunityValidationError("opportunities must be a list")
     return [
         _normalize_opportunity(item, f"opportunities[{index}]")
         for index, item in enumerate(opportunities)

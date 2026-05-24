@@ -17,7 +17,11 @@ from bounty_sieve.github_importer import (
     import_url_list,
 )
 from bounty_sieve.io import read_json, write_json, write_text
-from bounty_sieve.opportunities import OpportunityValidationError, load_json_opportunities
+from bounty_sieve.opportunities import (
+    OpportunityValidationError,
+    load_json_opportunities,
+    normalize_opportunities,
+)
 from bounty_sieve.reporting import (
     render_score_stdout_summary,
     render_score_stdout_summary_json,
@@ -61,7 +65,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     discover_parser.add_argument("--input", help="Path to a user-provided JSON opportunity file.")
     discover_parser.add_argument("--url", help="Public GitHub issue URL for --source github-issue.")
-    discover_parser.add_argument("--out", required=True)
+    discover_parser.add_argument("--out")
+    discover_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Preview one public GitHub issue as compact JSON without writing files.",
+    )
     discover_summary_group = discover_parser.add_mutually_exclusive_group()
     discover_summary_group.add_argument(
         "--summary",
@@ -143,6 +152,12 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "discover":
+        if args.dry_run and args.source != "github-issue":
+            discover_parser.error("--dry-run can only be used with --source github-issue")
+        if args.dry_run and (args.summary or args.summary_json):
+            discover_parser.error("--summary and --summary-json cannot be used with --dry-run")
+        if not args.dry_run and not args.out:
+            discover_parser.error("the following arguments are required: --out")
         if args.source == "fixture":
             if args.input:
                 discover_parser.error("--input can only be used with --source json or --source url-list")
@@ -164,9 +179,12 @@ def main(argv: list[str] | None = None) -> int:
             if not args.url:
                 discover_parser.error("--source github-issue requires --url URL")
             try:
-                opportunities = [import_github_issue_url(args.url)]
-            except GitHubImportError as exc:
+                opportunities = normalize_opportunities([import_github_issue_url(args.url)])
+            except (GitHubImportError, OpportunityValidationError) as exc:
                 discover_parser.error(str(exc))
+            if args.dry_run:
+                print(json.dumps(opportunities, separators=(",", ":"), sort_keys=True))
+                return 0
         else:
             if not args.input:
                 discover_parser.error("--source url-list requires --input PATH")
