@@ -72,6 +72,76 @@ def stdin_opportunities_json(*ids: str) -> str:
     )
 
 
+def shortlist_opportunities_json() -> str:
+    return json.dumps(
+        {
+            "opportunities": [
+                {
+                    "id": "watch-complex",
+                    "title": "High reward but complex backend refactor",
+                    "summary": "Large task with a fixed reward.",
+                    "url": "https://github.com/example/app/issues/3",
+                    "reward": {"amount": 1000, "currency": "USD", "type": "fixed"},
+                    "signals": {
+                        "clarity": "high",
+                        "repo_activity": "active",
+                        "competition": "low",
+                        "complexity": "high",
+                        "scope": "large",
+                        "tech": ["python"],
+                    },
+                },
+                {
+                    "id": "pursue-lower-roi",
+                    "title": "Fix flaky CLI test",
+                    "summary": "Small deterministic test repair.",
+                    "url": "https://github.com/example/app/issues/2",
+                    "reward": {"amount": 150, "currency": "USD", "type": "fixed"},
+                    "signals": {
+                        "clarity": "medium",
+                        "repo_activity": "active",
+                        "competition": "low",
+                        "complexity": "low",
+                        "scope": "small",
+                        "tech": ["python"],
+                    },
+                },
+                {
+                    "id": "pursue-higher-roi",
+                    "title": "Fix docs quickstart",
+                    "summary": "Tiny docs task with clear acceptance criteria.",
+                    "url": "https://github.com/example/app/issues/1",
+                    "reward": {"amount": 100, "currency": "USD", "type": "fixed"},
+                    "signals": {
+                        "clarity": "high",
+                        "repo_activity": "active",
+                        "competition": "low",
+                        "complexity": "low",
+                        "scope": "tiny",
+                        "tech": ["markdown", "cli"],
+                    },
+                },
+                {
+                    "id": "reject-wallet",
+                    "title": "Connect wallet for unknown token bounty",
+                    "summary": "Unsafe wallet requirement.",
+                    "url": "https://github.com/example/app/issues/4",
+                    "reward": {"amount": 500, "currency": "USD", "type": "fixed"},
+                    "signals": {
+                        "requires_token_or_unknown_asset": True,
+                        "clarity": "high",
+                        "repo_activity": "active",
+                        "competition": "low",
+                        "complexity": "low",
+                        "scope": "small",
+                        "tech": ["python"],
+                    },
+                },
+            ]
+        }
+    )
+
+
 def test_package_metadata_uses_bounty_sieve_names() -> None:
     pyproject = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
 
@@ -100,6 +170,7 @@ def test_cli_help_lists_offline_demo_commands() -> None:
     assert "discover" in result.stdout
     assert "score" in result.stdout
     assert "rank" in result.stdout
+    assert "shortlist" in result.stdout
     assert "next" in result.stdout
     assert "explain" in result.stdout
     assert "report" in result.stdout
@@ -1139,6 +1210,155 @@ def test_rank_rejects_non_positive_limit(tmp_path: Path) -> None:
     assert result.returncode == 2
     assert result.stdout == ""
     assert "bounty-sieve rank: error: --limit must be greater than 0" in result.stderr
+
+
+def test_shortlist_help_documents_export_flags() -> None:
+    result = run_cli_unchecked("shortlist", "--help")
+
+    assert result.returncode == 0
+    assert "Export a local read-only shortlist" in result.stdout
+    assert "--limit" in result.stdout
+    assert "--recommendation" in result.stdout
+    assert "--format" in result.stdout
+    assert "--out" in result.stdout
+
+
+def test_shortlist_markdown_stdout_is_clean_and_does_not_write_dash_file(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "opportunities.json"
+    source.write_text(shortlist_opportunities_json(), encoding="utf-8")
+
+    result = run_cli("shortlist", str(source), "--limit", "1", "--out", "-", cwd=tmp_path)
+
+    assert result.stderr == ""
+    assert "# Bounty Sieve Shortlist" in result.stdout
+    assert "## Safety Boundary" in result.stdout
+    assert "Selected: 1 of 4 total opportunities" in result.stdout
+    assert "Recommendation filter: pursue" in result.stdout
+    assert "Fix docs quickstart" in result.stdout
+    assert "ID: pursue-higher-roi" in result.stdout
+    assert "URL: https://github.com/example/app/issues/1" in result.stdout
+    assert "Recommendation: pursue" in result.stdout
+    assert "ROI:" in result.stdout
+    assert "Reward: $100" in result.stdout
+    assert "Reasons:" in result.stdout
+    assert "## Manual Verification Checklist" in result.stdout
+    assert "This file is only a local review shortlist" in result.stdout
+    assert "Fix flaky CLI test" not in result.stdout
+    assert not (tmp_path / "-").exists()
+
+
+def test_shortlist_markdown_file_writes_without_stdout(tmp_path: Path) -> None:
+    source = tmp_path / "opportunities.json"
+    out = tmp_path / "shortlist.md"
+    source.write_text(shortlist_opportunities_json(), encoding="utf-8")
+
+    result = run_cli("shortlist", str(source), "--limit", "2", "--out", str(out))
+
+    markdown = out.read_text(encoding="utf-8")
+    assert result.stdout == ""
+    assert result.stderr == ""
+    assert "# Bounty Sieve Shortlist" in markdown
+    assert "Selected: 2 of 4 total opportunities" in markdown
+    assert markdown.index("Fix docs quickstart") < markdown.index("Fix flaky CLI test")
+    assert "High reward but complex backend refactor" not in markdown
+
+
+def test_shortlist_json_output_shape(tmp_path: Path) -> None:
+    source = tmp_path / "opportunities.json"
+    source.write_text(shortlist_opportunities_json(), encoding="utf-8")
+
+    result = run_cli(
+        "shortlist",
+        str(source),
+        "--limit",
+        "2",
+        "--format",
+        "json",
+        "--out",
+        "-",
+        cwd=tmp_path,
+    )
+
+    payload = json.loads(result.stdout)
+    assert result.stderr == ""
+    assert payload["ok"] is True
+    assert payload["total"] == 4
+    assert payload["selected"] == 2
+    assert "does not clone repositories" in payload["safety_boundary"]
+    assert len(payload["manual_verification_checklist"]) == 3
+    assert [item["id"] for item in payload["items"]] == [
+        "pursue-higher-roi",
+        "pursue-lower-roi",
+    ]
+    assert set(payload["items"][0]) == {
+        "id",
+        "title",
+        "url",
+        "recommendation",
+        "roi_score",
+        "reward_estimate_usd",
+        "reasons",
+    }
+    assert payload["items"][0]["title"] == "Fix docs quickstart"
+    assert payload["items"][0]["recommendation"] == "pursue"
+    assert payload["items"][0]["reward_estimate_usd"] == 100
+    assert isinstance(payload["items"][0]["roi_score"], int)
+    assert not (tmp_path / "-").exists()
+    assert "\n" not in result.stdout.rstrip("\n")
+
+
+def test_shortlist_recommendation_filter_accepts_repeated_and_comma_values(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "opportunities.json"
+    out = tmp_path / "shortlist.json"
+    source.write_text(shortlist_opportunities_json(), encoding="utf-8")
+
+    result = run_cli(
+        "shortlist",
+        str(source),
+        "--recommendation",
+        "watch,reject",
+        "--recommendation",
+        "pursue",
+        "--limit",
+        "3",
+        "--format",
+        "json",
+        "--out",
+        str(out),
+    )
+
+    payload = read_json(out)
+    assert result.stdout == ""
+    assert result.stderr == ""
+    assert payload["selected"] == 3
+    assert [item["id"] for item in payload["items"]] == [
+        "pursue-higher-roi",
+        "pursue-lower-roi",
+        "watch-complex",
+    ]
+
+
+def test_shortlist_rejects_invalid_limit_and_recommendation(tmp_path: Path) -> None:
+    source = tmp_path / "opportunities.json"
+    source.write_text("[]", encoding="utf-8")
+
+    limit_result = run_cli_unchecked("shortlist", str(source), "--limit", "0", "--out", "-")
+    recommendation_result = run_cli_unchecked(
+        "shortlist", str(source), "--recommendation", "maybe", "--out", "-"
+    )
+
+    assert limit_result.returncode == 2
+    assert limit_result.stdout == ""
+    assert "--limit must be greater than 0" in limit_result.stderr
+    assert recommendation_result.returncode == 2
+    assert recommendation_result.stdout == ""
+    assert "--recommendation must be one of: pursue, watch, reject; got: maybe" in (
+        recommendation_result.stderr
+    )
 
 
 def test_next_human_output_prints_best_ranked_opportunity(tmp_path: Path) -> None:

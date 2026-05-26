@@ -128,6 +128,38 @@ def main(argv: list[str] | None = None) -> int:
         help="Print machine-readable JSON and no table.",
     )
 
+    shortlist_parser = subparsers.add_parser(
+        "shortlist",
+        help="Export a local read-only shortlist for review or agent handoff.",
+        description="Export a local read-only shortlist for review or agent handoff.",
+    )
+    shortlist_parser.add_argument("input")
+    shortlist_parser.add_argument(
+        "--limit",
+        type=int,
+        default=3,
+        help="Maximum selected opportunities to export; default 3.",
+    )
+    shortlist_parser.add_argument(
+        "--recommendation",
+        action="append",
+        help=(
+            "Recommendation to include. May be repeated or comma-separated; "
+            "choices: pursue, watch, reject. Default: pursue."
+        ),
+    )
+    shortlist_parser.add_argument(
+        "--format",
+        choices=["markdown", "json"],
+        default="markdown",
+        help="Output format; default markdown.",
+    )
+    shortlist_parser.add_argument(
+        "--out",
+        required=True,
+        help="Output path, or - for stdout.",
+    )
+
     next_parser = subparsers.add_parser(
         "next", help="Print the single best next opportunity."
     )
@@ -337,6 +369,45 @@ def main(argv: list[str] | None = None) -> int:
             print(_render_rank_table(shown))
         return 0
 
+    if args.command == "shortlist":
+        if args.limit <= 0:
+            shortlist_parser.error("--limit must be greater than 0")
+        recommendations = _parse_shortlist_recommendations(args.recommendation)
+        if not recommendations:
+            shortlist_parser.error("--recommendation must include at least one value")
+        invalid_recommendations = [
+            recommendation
+            for recommendation in recommendations
+            if recommendation not in RECOMMENDATION_VALUES
+        ]
+        if invalid_recommendations:
+            allowed = ", ".join(RECOMMENDATION_VALUES)
+            invalid = ", ".join(invalid_recommendations)
+            shortlist_parser.error(f"--recommendation must be one of: {allowed}; got: {invalid}")
+        try:
+            opportunities = load_json_opportunities(args.input)
+        except OpportunityValidationError as exc:
+            shortlist_parser.error(str(exc))
+        ranked = _rank_scored_opportunities(score_opportunities(opportunities))
+        selected = [
+            item
+            for item in ranked
+            if item.get("score", {}).get("recommendation") in set(recommendations)
+        ][: args.limit]
+        if args.format == "json":
+            payload = _shortlist_json_payload(ranked, selected)
+            if args.out == "-":
+                print(json.dumps(payload, separators=(",", ":"), sort_keys=True))
+            else:
+                write_json(args.out, payload)
+        else:
+            markdown = _render_shortlist_markdown(ranked, selected, recommendations, args.limit)
+            if args.out == "-":
+                print(markdown, end="")
+            else:
+                write_text(args.out, markdown)
+        return 0
+
     if args.command == "next":
         try:
             opportunities = load_json_opportunities(args.input)
@@ -466,6 +537,93 @@ def _rank_scored_opportunities(scored: list[dict]) -> list[dict]:
         return priority, -int(roi), index
 
     return [item for _, item in sorted(enumerate(scored), key=sort_key)]
+
+
+RECOMMENDATION_VALUES = ("pursue", "watch", "reject")
+
+
+def _parse_shortlist_recommendations(values: list[str] | None) -> list[str]:
+    if not values:
+        return ["pursue"]
+    recommendations: list[str] = []
+    for value in values:
+        recommendations.extend(
+            recommendation.strip() for recommendation in value.split(",") if recommendation.strip()
+        )
+    return recommendations
+
+
+def _shortlist_json_payload(ranked: list[dict], selected: list[dict]) -> dict:
+    return {
+        "ok": True,
+        "total": len(ranked),
+        "selected": len(selected),
+        "items": [_rank_item_payload(item) for item in selected],
+        "manual_verification_checklist": _manual_verification_checklist(),
+        "safety_boundary": _shortlist_safety_boundary_text(),
+    }
+
+
+def _render_shortlist_markdown(
+    ranked: list[dict], selected: list[dict], recommendations: list[str], limit: int
+) -> str:
+    lines = [
+        "# Bounty Sieve Shortlist",
+        "",
+        "## Safety Boundary",
+        "",
+        _shortlist_safety_boundary_text(),
+        "",
+        "## Selection",
+        "",
+        f"- Selected: {len(selected)} of {len(ranked)} total opportunities",
+        f"- Recommendation filter: {', '.join(recommendations)}",
+        f"- Limit: {limit}",
+        "",
+        "## Items",
+        "",
+    ]
+    if selected:
+        for index, item in enumerate(selected, start=1):
+            score = item.get("score", {})
+            lines.extend(
+                [
+                    f"### {index}. {item.get('title', '')}",
+                    "",
+                    f"- ID: {item.get('id', '')}",
+                    f"- URL: {item.get('url') or 'not provided'}",
+                    f"- Recommendation: {score.get('recommendation', '')}",
+                    f"- ROI: {score.get('roi_score', 0)}",
+                    f"- Reward: {_format_rank_reward(score.get('reward_estimate_usd', 0))}",
+                    "- Reasons:",
+                ]
+            )
+            reasons = score.get("reasons", [])
+            if reasons:
+                lines.extend(f"  - {reason}" for reason in reasons)
+            else:
+                lines.append("  - No specific reason recorded.")
+            lines.append("")
+    else:
+        lines.extend(["No opportunities matched the recommendation filter.", ""])
+
+    lines.extend(
+        [
+            "## Manual Verification Checklist",
+            "",
+        ]
+    )
+    lines.extend(f"- {item}" for item in _manual_verification_checklist())
+    lines.extend(
+        [
+            "",
+            "## Agent Handoff",
+            "",
+            "This file is only a local review shortlist. It is not approval to clone, comment, claim work, submit PRs, log in, use credentials, connect wallets, star repositories, or contact maintainers.",
+            "",
+        ]
+    )
+    return "\n".join(lines)
 
 
 def _render_rank_json(ranked: list[dict], shown: list[dict]) -> str:
@@ -623,6 +781,15 @@ def _safety_boundary_text() -> str:
         "network access, writes no files, and does not approve cloning, claiming work, "
         "commenting, opening PRs, logging in, using credentials, touching wallets, or "
         "contacting maintainers."
+    )
+
+
+def _shortlist_safety_boundary_text() -> str:
+    return (
+        "This shortlist is local and read-only: it scores the provided JSON only, performs no "
+        "network access, does not clone repositories, comment, contact maintainers, claim work, "
+        "open PRs, log in, use credentials, touch wallets, star repositories, or approve action "
+        "without separate human review."
     )
 
 
