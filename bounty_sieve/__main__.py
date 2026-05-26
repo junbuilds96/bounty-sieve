@@ -113,6 +113,24 @@ def main(argv: list[str] | None = None) -> int:
         help="Print machine-readable score summary JSON after writing.",
     )
 
+    compare_parser = subparsers.add_parser(
+        "compare",
+        help="Compare two local opportunity JSON files after scoring.",
+        description="Compare two local opportunity JSON files after normalizing and scoring.",
+    )
+    compare_parser.add_argument("before", help="Earlier local opportunity JSON file.")
+    compare_parser.add_argument("after", help="Later local opportunity JSON file.")
+    compare_parser.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="Print machine-readable JSON and no markdown.",
+    )
+    compare_parser.add_argument(
+        "--out",
+        help="Write the compare report to this path instead of stdout.",
+    )
+
     rank_parser = subparsers.add_parser(
         "rank", help="Print a ranked terminal view of discovered opportunities."
     )
@@ -359,6 +377,30 @@ def main(argv: list[str] | None = None) -> int:
             print(render_score_stdout_summary_json(scored, args.out))
         return 0
 
+    if args.command == "compare":
+        try:
+            before = score_opportunities(load_json_opportunities(args.before))
+        except OpportunityValidationError as exc:
+            compare_parser.error(f"before input: {exc}")
+        try:
+            after = score_opportunities(load_json_opportunities(args.after))
+        except OpportunityValidationError as exc:
+            compare_parser.error(f"after input: {exc}")
+        comparison = _compare_scored_opportunities(before, after)
+        if args.json_output:
+            payload = _compare_json_payload(before, after, comparison)
+            if args.out:
+                write_json(args.out, payload)
+            else:
+                print(json.dumps(payload, separators=(",", ":"), sort_keys=True))
+            return 0
+        markdown = _render_compare_markdown(before, after, comparison)
+        if args.out:
+            write_text(args.out, markdown)
+        else:
+            print(markdown, end="")
+        return 0
+
     if args.command == "rank":
         if args.limit is not None and args.limit <= 0:
             rank_parser.error("--limit must be greater than 0")
@@ -533,6 +575,184 @@ def _render_discover_summary_json(opportunities: list[dict], output_path: str | 
         "ids": [item["id"] for item in opportunities],
     }
     return json.dumps(payload, separators=(",", ":"))
+
+
+def _compare_scored_opportunities(before: list[dict], after: list[dict]) -> dict:
+    before_by_id = {item["id"]: item for item in before}
+    after_by_id = {item["id"]: item for item in after}
+    before_ids = set(before_by_id)
+    after_ids = set(after_by_id)
+    common_ids = before_ids.intersection(after_ids)
+
+    changed_recommendation = [
+        opportunity_id
+        for opportunity_id in common_ids
+        if _score_recommendation(before_by_id[opportunity_id])
+        != _score_recommendation(after_by_id[opportunity_id])
+    ]
+    changed_roi_score = [
+        opportunity_id
+        for opportunity_id in common_ids
+        if _score_roi(before_by_id[opportunity_id]) != _score_roi(after_by_id[opportunity_id])
+    ]
+    changed_recommendation_ids = set(changed_recommendation)
+    changed_roi_score_ids = set(changed_roi_score)
+    unchanged = [
+        opportunity_id
+        for opportunity_id in common_ids
+        if opportunity_id not in changed_recommendation_ids
+        and opportunity_id not in changed_roi_score_ids
+    ]
+
+    return {
+        "added": sorted(after_ids - before_ids),
+        "removed": sorted(before_ids - after_ids),
+        "changed_recommendation": sorted(changed_recommendation),
+        "changed_roi_score": sorted(changed_roi_score),
+        "unchanged": sorted(unchanged),
+        "before_by_id": before_by_id,
+        "after_by_id": after_by_id,
+    }
+
+
+def _compare_json_payload(before: list[dict], after: list[dict], comparison: dict) -> dict:
+    return {
+        "ok": True,
+        "before_total": len(before),
+        "after_total": len(after),
+        "counts": _compare_counts(comparison),
+        "added": [
+            _compare_item_payload(comparison["after_by_id"][opportunity_id])
+            for opportunity_id in comparison["added"]
+        ],
+        "removed": [
+            _compare_item_payload(comparison["before_by_id"][opportunity_id])
+            for opportunity_id in comparison["removed"]
+        ],
+        "changed_recommendation": [
+            _compare_change_payload(opportunity_id, comparison)
+            for opportunity_id in comparison["changed_recommendation"]
+        ],
+        "changed_roi_score": [
+            _compare_change_payload(opportunity_id, comparison)
+            for opportunity_id in comparison["changed_roi_score"]
+        ],
+        "safety_boundary": _compare_safety_boundary_text(),
+    }
+
+
+def _compare_counts(comparison: dict) -> dict[str, int]:
+    return {
+        "added": len(comparison["added"]),
+        "removed": len(comparison["removed"]),
+        "changed_recommendation": len(comparison["changed_recommendation"]),
+        "changed_roi_score": len(comparison["changed_roi_score"]),
+        "unchanged": len(comparison["unchanged"]),
+    }
+
+
+def _compare_item_payload(item: dict) -> dict:
+    return {
+        "id": item.get("id"),
+        "recommendation": _score_recommendation(item),
+        "roi_score": _score_roi(item),
+    }
+
+
+def _compare_change_payload(opportunity_id: str, comparison: dict) -> dict:
+    before = comparison["before_by_id"][opportunity_id]
+    after = comparison["after_by_id"][opportunity_id]
+    return {
+        "id": opportunity_id,
+        "before": {
+            "recommendation": _score_recommendation(before),
+            "roi_score": _score_roi(before),
+        },
+        "after": {
+            "recommendation": _score_recommendation(after),
+            "roi_score": _score_roi(after),
+        },
+    }
+
+
+def _render_compare_markdown(before: list[dict], after: list[dict], comparison: dict) -> str:
+    counts = _compare_counts(comparison)
+    lines = [
+        "# Bounty Sieve Compare",
+        "",
+        "## Safety Boundary",
+        "",
+        _compare_safety_boundary_text(),
+        "",
+        "## Counts",
+        "",
+        f"- Before total: {len(before)}",
+        f"- After total: {len(after)}",
+        f"- Added: {counts['added']}",
+        f"- Removed: {counts['removed']}",
+        f"- Changed recommendation: {counts['changed_recommendation']}",
+        f"- Changed ROI score: {counts['changed_roi_score']}",
+        f"- Unchanged: {counts['unchanged']}",
+        "",
+        "## Added",
+        "",
+    ]
+    _extend_compare_item_lines(lines, comparison, "added", "after_by_id")
+    lines.extend(["## Removed", ""])
+    _extend_compare_item_lines(lines, comparison, "removed", "before_by_id")
+    lines.extend(["## Changed Recommendation", ""])
+    _extend_compare_change_lines(lines, comparison, "changed_recommendation")
+    lines.extend(["## Changed ROI Score", ""])
+    _extend_compare_change_lines(lines, comparison, "changed_roi_score")
+    return "\n".join(lines)
+
+
+def _extend_compare_item_lines(
+    lines: list[str], comparison: dict, id_key: str, item_map_key: str
+) -> None:
+    opportunity_ids = comparison[id_key]
+    if not opportunity_ids:
+        lines.extend(["No items.", ""])
+        return
+    for opportunity_id in opportunity_ids:
+        item = comparison[item_map_key][opportunity_id]
+        lines.append(
+            f"- {opportunity_id}: recommendation={_score_recommendation(item)}, "
+            f"roi_score={_score_roi(item)}"
+        )
+    lines.append("")
+
+
+def _extend_compare_change_lines(lines: list[str], comparison: dict, id_key: str) -> None:
+    opportunity_ids = comparison[id_key]
+    if not opportunity_ids:
+        lines.extend(["No changes.", ""])
+        return
+    for opportunity_id in opportunity_ids:
+        before = comparison["before_by_id"][opportunity_id]
+        after = comparison["after_by_id"][opportunity_id]
+        lines.append(
+            f"- {opportunity_id}: recommendation "
+            f"{_score_recommendation(before)} -> {_score_recommendation(after)}, "
+            f"roi_score {_score_roi(before)} -> {_score_roi(after)}"
+        )
+    lines.append("")
+
+
+def _score_recommendation(item: dict) -> object:
+    return item.get("score", {}).get("recommendation")
+
+
+def _score_roi(item: dict) -> object:
+    return item.get("score", {}).get("roi_score")
+
+
+def _compare_safety_boundary_text() -> str:
+    return (
+        "This compare is local and read-only: it normalizes and scores the provided JSON files "
+        "only, performs no network access, requests no credentials, writes only when --out is "
+        "provided, and reports only opportunity IDs plus recommendation and ROI changes."
+    )
 
 
 def _rank_scored_opportunities(scored: list[dict]) -> list[dict]:

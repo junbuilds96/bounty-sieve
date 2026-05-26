@@ -142,6 +142,114 @@ def shortlist_opportunities_json() -> str:
     )
 
 
+def compare_before_after_json() -> tuple[str, str]:
+    before = {
+        "opportunities": [
+            {
+                "id": "removed-task",
+                "title": "Removed task title",
+                "summary": "Removed task summary.",
+                "reward": {"amount": 100, "currency": "USD", "type": "fixed"},
+                "signals": {
+                    "clarity": "high",
+                    "repo_activity": "active",
+                    "competition": "low",
+                    "complexity": "low",
+                    "scope": "tiny",
+                    "tech": ["python"],
+                },
+            },
+            {
+                "id": "rec-change",
+                "title": "Recommendation change title",
+                "summary": "Recommendation change summary.",
+                "signals": {"clarity": "low"},
+            },
+            {
+                "id": "roi-change",
+                "title": "ROI change title",
+                "summary": "ROI change summary.",
+                "reward": {"amount": 100, "currency": "USD", "type": "fixed"},
+                "signals": {
+                    "clarity": "high",
+                    "repo_activity": "active",
+                    "competition": "low",
+                    "complexity": "low",
+                    "scope": "tiny",
+                    "tech": ["python"],
+                },
+            },
+            {
+                "id": "unchanged-task",
+                "title": "Unchanged title",
+                "summary": "Unchanged summary.",
+                "reward": {"amount": 50, "currency": "USD", "type": "fixed"},
+                "signals": {
+                    "clarity": "medium",
+                    "repo_activity": "active",
+                    "competition": "low",
+                    "complexity": "low",
+                    "scope": "small",
+                    "tech": ["python"],
+                },
+            },
+        ]
+    }
+    after = {
+        "opportunities": [
+            {
+                "id": "added-task",
+                "title": "Added task title",
+                "summary": "Added task summary.",
+                "signals": {"clarity": "low"},
+            },
+            {
+                "id": "rec-change",
+                "title": "Recommendation change title",
+                "summary": "Recommendation change summary.",
+                "reward": {"amount": 100, "currency": "USD", "type": "fixed"},
+                "signals": {
+                    "clarity": "high",
+                    "repo_activity": "active",
+                    "competition": "low",
+                    "complexity": "low",
+                    "scope": "tiny",
+                    "tech": ["python"],
+                },
+            },
+            {
+                "id": "roi-change",
+                "title": "ROI change title",
+                "summary": "ROI change summary.",
+                "reward": {"amount": 100, "currency": "USD", "type": "fixed"},
+                "signals": {
+                    "clarity": "high",
+                    "repo_activity": "active",
+                    "competition": "low",
+                    "complexity": "low",
+                    "scope": "tiny",
+                    "tech": ["python", "pytest", "markdown"],
+                },
+            },
+            {
+                "id": "unchanged-task",
+                "title": "Unchanged title",
+                "summary": "Unchanged summary.",
+                "reward": {"amount": 50, "currency": "USD", "type": "fixed"},
+                "signals": {
+                    "clarity": "medium",
+                    "repo_activity": "active",
+                    "competition": "low",
+                    "complexity": "low",
+                    "scope": "small",
+                    "tech": ["python"],
+                },
+            },
+        ]
+    }
+    return json.dumps(before), json.dumps(after)
+
+
 def test_package_metadata_uses_bounty_sieve_names() -> None:
     pyproject = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
 
@@ -169,6 +277,7 @@ def test_cli_help_lists_offline_demo_commands() -> None:
     assert "validate" in result.stdout
     assert "discover" in result.stdout
     assert "score" in result.stdout
+    assert "compare" in result.stdout
     assert "rank" in result.stdout
     assert "shortlist" in result.stdout
     assert "next" in result.stdout
@@ -1059,6 +1168,100 @@ def test_score_without_out_does_not_write_output_file(tmp_path: Path) -> None:
 
     assert result.stderr == ""
     assert sorted(path.name for path in tmp_path.iterdir()) == ["opportunities.json"]
+
+
+def test_compare_human_stdout_reports_recommendation_and_roi_diffs(
+    tmp_path: Path,
+) -> None:
+    before = tmp_path / "before.json"
+    after = tmp_path / "after.json"
+    before_json, after_json = compare_before_after_json()
+    before.write_text(before_json, encoding="utf-8")
+    after.write_text(after_json, encoding="utf-8")
+
+    result = run_cli("compare", str(before), str(after))
+
+    assert result.stderr == ""
+    assert "# Bounty Sieve Compare" in result.stdout
+    assert "## Safety Boundary" in result.stdout
+    assert "performs no network access" in result.stdout
+    assert "requests no credentials" in result.stdout
+    assert "- Before total: 4" in result.stdout
+    assert "- After total: 4" in result.stdout
+    assert "- Added: 1" in result.stdout
+    assert "- Removed: 1" in result.stdout
+    assert "- Changed recommendation: 1" in result.stdout
+    assert "- Changed ROI score: 2" in result.stdout
+    assert "- Unchanged: 1" in result.stdout
+    assert "- added-task: recommendation=watch, roi_score=" in result.stdout
+    assert "- removed-task: recommendation=pursue, roi_score=" in result.stdout
+    assert "- rec-change: recommendation watch -> pursue" in result.stdout
+    assert "- roi-change: recommendation pursue -> pursue" in result.stdout
+    assert "Added task title" not in result.stdout
+    assert "ROI change summary" not in result.stdout
+    assert sorted(path.name for path in tmp_path.iterdir()) == ["after.json", "before.json"]
+
+
+def test_compare_json_output_shape(tmp_path: Path) -> None:
+    before = tmp_path / "before.json"
+    after = tmp_path / "after.json"
+    before_json, after_json = compare_before_after_json()
+    before.write_text(before_json, encoding="utf-8")
+    after.write_text(after_json, encoding="utf-8")
+
+    result = run_cli("compare", str(before), str(after), "--json")
+
+    payload = json.loads(result.stdout)
+    assert result.stderr == ""
+    assert payload["ok"] is True
+    assert payload["before_total"] == 4
+    assert payload["after_total"] == 4
+    assert payload["counts"] == {
+        "added": 1,
+        "removed": 1,
+        "changed_recommendation": 1,
+        "changed_roi_score": 2,
+        "unchanged": 1,
+    }
+    assert payload["added"][0]["id"] == "added-task"
+    assert payload["removed"][0]["id"] == "removed-task"
+    assert [item["id"] for item in payload["changed_recommendation"]] == ["rec-change"]
+    assert [item["id"] for item in payload["changed_roi_score"]] == [
+        "rec-change",
+        "roi-change",
+    ]
+    rec_change = payload["changed_recommendation"][0]
+    assert rec_change["before"]["recommendation"] == "watch"
+    assert rec_change["after"]["recommendation"] == "pursue"
+    assert "safety_boundary" in payload
+    assert "Added task title" not in result.stdout
+    assert "\n" not in result.stdout.rstrip("\n")
+
+
+def test_compare_out_writes_markdown_or_json_without_stdout(tmp_path: Path) -> None:
+    before = tmp_path / "before.json"
+    after = tmp_path / "after.json"
+    markdown_out = tmp_path / "compare.md"
+    json_out = tmp_path / "compare.json"
+    before_json, after_json = compare_before_after_json()
+    before.write_text(before_json, encoding="utf-8")
+    after.write_text(after_json, encoding="utf-8")
+
+    markdown_result = run_cli("compare", str(before), str(after), "--out", str(markdown_out))
+    json_result = run_cli(
+        "compare", str(before), str(after), "--json", "--out", str(json_out)
+    )
+
+    markdown = markdown_out.read_text(encoding="utf-8")
+    payload = read_json(json_out)
+    assert markdown_result.stdout == ""
+    assert markdown_result.stderr == ""
+    assert "# Bounty Sieve Compare" in markdown
+    assert "- Changed recommendation: 1" in markdown
+    assert json_result.stdout == ""
+    assert json_result.stderr == ""
+    assert payload["ok"] is True
+    assert payload["counts"]["changed_roi_score"] == 2
 
 
 def test_rank_table_sorts_by_recommendation_then_roi_and_respects_limit(
