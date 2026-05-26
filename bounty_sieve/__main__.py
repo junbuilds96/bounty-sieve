@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from collections import Counter
 from pathlib import Path
 
@@ -132,6 +133,20 @@ def main(argv: list[str] | None = None) -> int:
     )
     next_parser.add_argument("input")
     next_parser.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="Print machine-readable JSON and no extra prose.",
+    )
+
+    explain_parser = subparsers.add_parser(
+        "explain",
+        help="Print a read-only decision card for one opportunity.",
+        description="Print a read-only decision card for one opportunity.",
+    )
+    explain_parser.add_argument("input")
+    explain_parser.add_argument("opportunity_id", help="Opportunity id to explain.")
+    explain_parser.add_argument(
         "--json",
         action="store_true",
         dest="json_output",
@@ -335,6 +350,29 @@ def main(argv: list[str] | None = None) -> int:
             print(_render_next_human(selected))
         return 0
 
+    if args.command == "explain":
+        try:
+            opportunities = load_json_opportunities(args.input)
+        except OpportunityValidationError as exc:
+            explain_parser.error(str(exc))
+        scored = score_opportunities(opportunities)
+        selected = _find_scored_opportunity(scored, args.opportunity_id)
+        if selected is None:
+            available_ids = [item["id"] for item in scored]
+            if args.json_output:
+                print(_render_explain_not_found_json(args.opportunity_id, available_ids))
+            else:
+                print(
+                    _explain_not_found_message(args.opportunity_id, available_ids),
+                    file=sys.stderr,
+                )
+            return 1
+        if args.json_output:
+            print(_render_explain_json(len(scored), selected))
+        else:
+            print(_render_explain_human(selected))
+        return 0
+
     if args.command == "report":
         if args.out == "-" and (args.summary or args.summary_json):
             report_parser.error(
@@ -487,6 +525,110 @@ def _render_next_human(selected: dict | None) -> str:
 
 def _next_empty_message() -> str:
     return "No opportunities found. Add opportunities first, then rerun next."
+
+
+def _find_scored_opportunity(scored: list[dict], opportunity_id: str) -> dict | None:
+    return next((item for item in scored if item.get("id") == opportunity_id), None)
+
+
+def _render_explain_json(total: int, selected: dict) -> str:
+    payload = {
+        "ok": True,
+        "total": total,
+        "item": _explain_item_payload(selected),
+    }
+    return json.dumps(payload, separators=(",", ":"), sort_keys=True)
+
+
+def _render_explain_not_found_json(opportunity_id: str, available_ids: list[str]) -> str:
+    payload = {
+        "ok": False,
+        "error": f"opportunity id not found: {opportunity_id}",
+        "id": opportunity_id,
+        "available_ids": available_ids,
+    }
+    return json.dumps(payload, separators=(",", ":"), sort_keys=True)
+
+
+def _explain_item_payload(item: dict) -> dict:
+    score = item.get("score", {})
+    return {
+        "id": item.get("id"),
+        "title": item.get("title"),
+        "url": item.get("url"),
+        "recommendation": score.get("recommendation"),
+        "roi_score": score.get("roi_score"),
+        "reward_estimate_usd": score.get("reward_estimate_usd"),
+        "score_components": _score_component_payload(score),
+        "reasons": score.get("reasons", []),
+        "manual_verification_checklist": _manual_verification_checklist(),
+        "safety_boundary": _safety_boundary_text(),
+    }
+
+
+def _score_component_payload(score: dict) -> dict:
+    keys = [
+        "payment_confidence",
+        "issue_clarity",
+        "repo_activity",
+        "competition_risk",
+        "complexity_estimate",
+        "tech_match",
+        "scope_risk",
+    ]
+    return {key: score.get(key) for key in keys}
+
+
+def _render_explain_human(selected: dict) -> str:
+    score = selected.get("score", {})
+    lines = [
+        f"Decision card: {selected.get('title', '')}",
+        f"ID: {selected.get('id', '')}",
+        f"Recommendation: {score.get('recommendation', '')}",
+        f"ROI: {score.get('roi_score', 0)}",
+        f"Reward: {_format_rank_reward(score.get('reward_estimate_usd', 0))}",
+    ]
+    if selected.get("url"):
+        lines.append(f"Public URL: {selected['url']}")
+
+    lines.append("Score components:")
+    components = _score_component_payload(score)
+    lines.extend(f"- {key}: {value}" for key, value in components.items())
+
+    lines.append("Reasons:")
+    reasons = score.get("reasons", [])
+    if reasons:
+        lines.extend(f"- {reason}" for reason in reasons)
+    else:
+        lines.append("- No specific reason recorded.")
+
+    lines.append("Manual verification checklist:")
+    lines.extend(f"- {item}" for item in _manual_verification_checklist())
+    lines.append("Safety boundary:")
+    lines.append(f"- {_safety_boundary_text()}")
+    return "\n".join(lines)
+
+
+def _manual_verification_checklist() -> list[str]:
+    return [
+        "Confirm the opportunity is still open and not already claimed or solved.",
+        "Confirm payment terms, scope, acceptance criteria, and maintainer or poster activity.",
+        "Confirm the task does not require credentials, secrets, wallet access, unknown assets, private data, prompt extraction, engagement farming, or duplicate low-value PRs.",
+    ]
+
+
+def _safety_boundary_text() -> str:
+    return (
+        "This command is local and read-only: it scores the provided JSON only, performs no "
+        "network access, writes no files, and does not approve cloning, claiming work, "
+        "commenting, opening PRs, logging in, using credentials, touching wallets, or "
+        "contacting maintainers."
+    )
+
+
+def _explain_not_found_message(opportunity_id: str, available_ids: list[str]) -> str:
+    ids = ", ".join(available_ids) or "(none)"
+    return f"Opportunity id not found: {opportunity_id}\nAvailable IDs: {ids}"
 
 
 def _render_rank_table(shown: list[dict]) -> str:

@@ -50,11 +50,12 @@ Agent-safe default workflow:
 python -m bounty_sieve discover --source json --input examples/opportunities.sample.json --out out/discovered.json
 python -m bounty_sieve rank out/discovered.json --limit 10
 python -m bounty_sieve next out/discovered.json
+python -m bounty_sieve explain out/discovered.json docs-install-check
 python -m bounty_sieve score out/discovered.json --out out/scored.json
 python -m bounty_sieve report out/scored.json --out out/report.md
 ```
 
-Use `rank` for an immediate local terminal shortlist after discovery, or `next` to print the single best ranked opportunity for immediate manual selection. Add `--summary` to the report command when an agent needs a concise stdout recap after the Markdown file is written.
+Use `rank` for an immediate local terminal shortlist after discovery, `next` to print the single best ranked opportunity for immediate manual selection, or `explain` to print a concise read-only decision card for one opportunity id. Add `--json` to `rank`, `next`, or `explain` for machine-readable stdout, and add `--summary` to the report command when an agent needs a concise stdout recap after the Markdown file is written.
 
 Agents may use public URL intake only when the human explicitly provides or approves the URL source:
 
@@ -140,9 +141,10 @@ For a compact terminal view before opening artifacts, run:
 ```bash
 python -m bounty_sieve rank out/discovered.json --limit 10
 python -m bounty_sieve next out/discovered.json
+python -m bounty_sieve explain out/discovered.json docs-install-check
 ```
 
-Open `out/report.md`. The report is a decision brief with a plain-language summary, fastest safe wins, risky or high-reward items, a manual checklist for every item, and clear watch/reject reasons. Add `--summary` to also print the report path, counts, and summary sentence to stdout.
+`explain` scores the same local opportunity JSON as `rank` and `next`, prints id, title, recommendation, ROI, reward, public URL when present, key score components, reasons, and a manual verification checklist with the safety boundary. Open `out/report.md` for the full decision brief with a plain-language summary, fastest safe wins, risky or high-reward items, a manual checklist for every item, and clear watch/reject reasons. Add `--summary` to also print the report path, counts, and summary sentence to stdout.
 
 Validation errors point to the field that needs attention, for example `opportunities[0].id is required and must be a non-empty string`.
 
@@ -206,6 +208,13 @@ Rank discovered opportunities in the terminal without writing files:
 ```bash
 python -m bounty_sieve rank out/discovered.json --limit 10
 python -m bounty_sieve rank out/discovered.json --json
+```
+
+Explain one discovered opportunity in the terminal without writing files:
+
+```bash
+python -m bounty_sieve explain out/discovered.json docs-install-check
+python -m bounty_sieve explain out/discovered.json docs-install-check --json
 ```
 
 Render a Markdown report:

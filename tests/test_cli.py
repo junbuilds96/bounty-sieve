@@ -101,6 +101,7 @@ def test_cli_help_lists_offline_demo_commands() -> None:
     assert "score" in result.stdout
     assert "rank" in result.stdout
     assert "next" in result.stdout
+    assert "explain" in result.stdout
     assert "report" in result.stdout
     assert "demo" in result.stdout
     assert "doctor" in result.stdout
@@ -1274,6 +1275,168 @@ def test_next_empty_input_prints_no_op_message(tmp_path: Path) -> None:
 
     assert result.stderr == ""
     assert result.stdout == "No opportunities found. Add opportunities first, then rerun next.\n"
+
+
+def test_explain_help_documents_read_only_decision_card() -> None:
+    result = run_cli_unchecked("explain", "--help")
+
+    assert result.returncode == 0
+    assert "Print a read-only decision card for one opportunity." in result.stdout
+    assert "opportunity_id" in result.stdout
+    assert "--json" in result.stdout
+
+
+def test_explain_human_output_prints_decision_card_without_writing(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "opportunities.json"
+    source.write_text(
+        json.dumps(
+            {
+                "opportunities": [
+                    {
+                        "id": "pursue-docs",
+                        "title": "Fix docs quickstart",
+                        "summary": "Tiny docs task.",
+                        "url": "https://github.com/example/app/issues/1",
+                        "reward": {"amount": 100, "currency": "USD", "type": "fixed"},
+                        "signals": {
+                            "clarity": "high",
+                            "repo_activity": "active",
+                            "competition": "low",
+                            "complexity": "low",
+                            "scope": "tiny",
+                            "tech": ["markdown", "cli"],
+                        },
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = run_cli("explain", str(source), "pursue-docs")
+
+    assert result.stderr == ""
+    assert "Decision card: Fix docs quickstart" in result.stdout
+    assert "ID: pursue-docs" in result.stdout
+    assert "Recommendation: pursue" in result.stdout
+    assert "ROI:" in result.stdout
+    assert "Reward: $100" in result.stdout
+    assert "Public URL: https://github.com/example/app/issues/1" in result.stdout
+    assert "Score components:" in result.stdout
+    assert "- payment_confidence: 85" in result.stdout
+    assert "- issue_clarity: 90" in result.stdout
+    assert "Reasons:" in result.stdout
+    assert "Manual verification checklist:" in result.stdout
+    assert "Safety boundary:" in result.stdout
+    assert "performs no network access, writes no files" in result.stdout
+    assert sorted(path.name for path in tmp_path.iterdir()) == ["opportunities.json"]
+
+
+def test_explain_json_output_shape(tmp_path: Path) -> None:
+    source = tmp_path / "opportunities.json"
+    source.write_text(
+        json.dumps(
+            {
+                "opportunities": [
+                    {
+                        "id": "watch-vague",
+                        "title": "Investigate vague performance issue",
+                        "summary": "Unclear performance work.",
+                        "signals": {"clarity": "low"},
+                    },
+                    {
+                        "id": "pursue-docs",
+                        "title": "Fix docs quickstart",
+                        "summary": "Tiny docs task.",
+                        "url": "https://github.com/example/app/issues/1",
+                        "reward": {"amount": 100, "currency": "USD", "type": "fixed"},
+                        "signals": {
+                            "clarity": "high",
+                            "repo_activity": "active",
+                            "competition": "low",
+                            "complexity": "low",
+                            "scope": "tiny",
+                            "tech": ["markdown"],
+                        },
+                    },
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = run_cli("explain", str(source), "pursue-docs", "--json")
+
+    payload = json.loads(result.stdout)
+    item = payload["item"]
+    assert result.stderr == ""
+    assert payload["ok"] is True
+    assert payload["total"] == 2
+    assert set(item) == {
+        "id",
+        "title",
+        "url",
+        "recommendation",
+        "roi_score",
+        "reward_estimate_usd",
+        "score_components",
+        "reasons",
+        "manual_verification_checklist",
+        "safety_boundary",
+    }
+    assert item["id"] == "pursue-docs"
+    assert item["title"] == "Fix docs quickstart"
+    assert item["url"] == "https://github.com/example/app/issues/1"
+    assert item["recommendation"] == "pursue"
+    assert item["reward_estimate_usd"] == 100
+    assert isinstance(item["roi_score"], int)
+    assert item["score_components"] == {
+        "payment_confidence": 85,
+        "issue_clarity": 90,
+        "repo_activity": 85,
+        "competition_risk": 20,
+        "complexity_estimate": 20,
+        "tech_match": 55,
+        "scope_risk": 15,
+    }
+    assert isinstance(item["reasons"], list)
+    assert len(item["manual_verification_checklist"]) == 3
+    assert "performs no network access, writes no files" in item["safety_boundary"]
+
+
+def test_explain_not_found_reports_available_ids_without_traceback(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "opportunities.json"
+    source.write_text(stdin_opportunities_json("docs-fix", "test-fix"), encoding="utf-8")
+
+    result = run_cli_unchecked("explain", str(source), "missing-id")
+
+    assert result.returncode == 1
+    assert result.stdout == ""
+    assert "Opportunity id not found: missing-id" in result.stderr
+    assert "Available IDs: docs-fix, test-fix" in result.stderr
+    assert "Traceback" not in result.stderr
+
+
+def test_explain_not_found_json_reports_machine_readable_error(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "opportunities.json"
+    source.write_text(stdin_opportunities_json("docs-fix", "test-fix"), encoding="utf-8")
+
+    result = run_cli_unchecked("explain", str(source), "missing-id", "--json")
+
+    assert result.returncode == 1
+    assert result.stderr == ""
+    assert json.loads(result.stdout) == {
+        "ok": False,
+        "error": "opportunity id not found: missing-id",
+        "id": "missing-id",
+        "available_ids": ["docs-fix", "test-fix"],
+    }
 
 
 def test_score_summary_prints_concise_stdout_after_writing(tmp_path: Path) -> None:
