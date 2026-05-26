@@ -13,6 +13,7 @@ from bounty_sieve.fixtures import load_fixture_opportunities
 from bounty_sieve.github_importer import (
     GitHubImportError,
     emit_warnings,
+    import_github_search,
     import_github_issue_url,
     import_url_list,
 )
@@ -56,21 +57,27 @@ def main(argv: list[str] | None = None) -> int:
     discover_parser = subparsers.add_parser("discover", help="Discover opportunities.")
     discover_parser.add_argument(
         "--source",
-        choices=["fixture", "json", "github-issue", "url-list"],
+        choices=["fixture", "json", "github-issue", "github-search", "url-list"],
         required=True,
         help=(
-            "Discovery source. fixture/json are local only; github-issue and url-list "
-            "perform explicit read-only public URL fetches."
+            "Discovery source. fixture/json are local only; github-issue, "
+            "github-search, and url-list perform explicit read-only public fetches."
         ),
     )
     discover_parser.add_argument("--input", help="Path to a user-provided JSON opportunity file.")
     discover_parser.add_argument("--url", help="Public GitHub issue URL for --source github-issue.")
+    discover_parser.add_argument("--query", help="GitHub issue search query for --source github-search.")
+    discover_parser.add_argument(
+        "--limit",
+        type=int,
+        help="Maximum GitHub search results for --source github-search; default 10, max 50.",
+    )
     discover_parser.add_argument("--out")
     discover_parser.add_argument(
         "--dry-run",
         action="store_true",
         help=(
-            "Preview github-issue or url-list imports as compact JSON without "
+            "Preview github-issue, github-search, or url-list imports as compact JSON without "
             "requiring --out or writing files."
         ),
     )
@@ -160,9 +167,9 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "discover":
-        if args.dry_run and args.source not in {"github-issue", "url-list"}:
+        if args.dry_run and args.source not in {"github-issue", "github-search", "url-list"}:
             discover_parser.error(
-                "--dry-run can only be used with --source github-issue or --source url-list"
+                "--dry-run can only be used with --source github-issue, --source github-search, or --source url-list"
             )
         if args.dry_run and (args.summary or args.summary_json):
             discover_parser.error("--summary and --summary-json cannot be used with --dry-run")
@@ -173,12 +180,20 @@ def main(argv: list[str] | None = None) -> int:
                 discover_parser.error("--input can only be used with --source json or --source url-list")
             if args.url:
                 discover_parser.error("--url can only be used with --source github-issue")
+            if args.query:
+                discover_parser.error("--query can only be used with --source github-search")
+            if args.limit is not None:
+                discover_parser.error("--limit can only be used with --source github-search")
             opportunities = load_fixture_opportunities()
         elif args.source == "json":
             if not args.input:
                 discover_parser.error("--source json requires --input PATH")
             if args.url:
                 discover_parser.error("--url can only be used with --source github-issue")
+            if args.query:
+                discover_parser.error("--query can only be used with --source github-search")
+            if args.limit is not None:
+                discover_parser.error("--limit can only be used with --source github-search")
             try:
                 opportunities = load_json_opportunities(args.input)
             except OpportunityValidationError as exc:
@@ -188,8 +203,29 @@ def main(argv: list[str] | None = None) -> int:
                 discover_parser.error("--input cannot be used with --source github-issue")
             if not args.url:
                 discover_parser.error("--source github-issue requires --url URL")
+            if args.query:
+                discover_parser.error("--query can only be used with --source github-search")
+            if args.limit is not None:
+                discover_parser.error("--limit can only be used with --source github-search")
             try:
                 opportunities = normalize_opportunities([import_github_issue_url(args.url)])
+            except (GitHubImportError, OpportunityValidationError) as exc:
+                discover_parser.error(str(exc))
+            if args.dry_run:
+                print(json.dumps(opportunities, separators=(",", ":"), sort_keys=True))
+                return 0
+        elif args.source == "github-search":
+            if args.input:
+                discover_parser.error("--input cannot be used with --source github-search")
+            if args.url:
+                discover_parser.error("--url cannot be used with --source github-search")
+            if not args.query:
+                discover_parser.error("--source github-search requires --query QUERY")
+            limit = 10 if args.limit is None else args.limit
+            if limit < 1 or limit > 50:
+                discover_parser.error("--limit must be between 1 and 50")
+            try:
+                opportunities = normalize_opportunities(import_github_search(args.query, limit))
             except (GitHubImportError, OpportunityValidationError) as exc:
                 discover_parser.error(str(exc))
             if args.dry_run:
@@ -200,6 +236,10 @@ def main(argv: list[str] | None = None) -> int:
                 discover_parser.error("--source url-list requires --input PATH")
             if args.url:
                 discover_parser.error("--url can only be used with --source github-issue")
+            if args.query:
+                discover_parser.error("--query can only be used with --source github-search")
+            if args.limit is not None:
+                discover_parser.error("--limit can only be used with --source github-search")
             try:
                 opportunities, warnings = import_url_list(args.input)
             except OSError as exc:

@@ -4,10 +4,12 @@ import json
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qs, urlparse
 
 from bounty_sieve.github_importer import (
     GitHubIssueRef,
     github_issue_to_opportunity,
+    import_github_search,
     import_github_issue_url,
     import_url_list,
 )
@@ -112,6 +114,116 @@ def test_github_issue_fetch_ignores_malicious_payload_comments_url(monkeypatch) 
     ]
     assert opportunity["signals"]["competition"] == "low"
     assert "attacker.example" not in json.dumps(opportunity)
+
+
+def test_github_search_builds_search_url_filters_pull_requests_and_fetches_issue_comments(
+    monkeypatch,
+) -> None:
+    calls = []
+    search_payload = {
+        "items": [
+            {
+                "title": "Fix public docs bounty ($50)",
+                "body": "Acceptance criteria\n- Update README",
+                "html_url": "https://github.com/example/widgets/issues/42",
+                "repository_url": "https://api.github.com/repos/example/widgets",
+                "labels": [{"name": "documentation"}],
+                "state": "open",
+                "number": 42,
+                "comments": 1,
+                "created_at": "2026-05-01T00:00:00Z",
+                "updated_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+                "assignees": [],
+            },
+            {
+                "title": "Already a PR",
+                "body": "Do not import pull requests.",
+                "html_url": "https://github.com/example/widgets/pull/99",
+                "repository_url": "https://api.github.com/repos/example/widgets",
+                "labels": [],
+                "state": "open",
+                "number": 99,
+                "comments": 3,
+                "pull_request": {"url": "https://api.github.com/repos/example/widgets/pulls/99"},
+            },
+            {
+                "title": "Fix a typo",
+                "body": "Tiny docs issue.",
+                "html_url": "https://github.com/example/widgets/issues/43",
+                "repository_url": "https://api.github.com/repos/example/widgets",
+                "labels": [{"name": "documentation"}],
+                "state": "open",
+                "number": 43,
+                "comments": 0,
+                "created_at": "2026-05-01T00:00:00Z",
+                "updated_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+                "assignees": [],
+            },
+        ]
+    }
+    comments_payload = [{"body": "Still open."}]
+
+    def fake_urlopen(request, timeout):
+        calls.append((request, timeout))
+        if len(calls) == 1:
+            return FakeResponse(search_payload)
+        if request.full_url == "https://api.github.com/repos/example/widgets/issues/42/comments":
+            return FakeResponse(comments_payload)
+        raise AssertionError(f"unexpected URL fetched: {request.full_url}")
+
+    monkeypatch.setattr("bounty_sieve.github_importer.urlopen", fake_urlopen)
+
+    opportunities = import_github_search('label:"good first issue" bounty', 25)
+
+    search_url = urlparse(calls[0][0].full_url)
+    assert search_url.scheme == "https"
+    assert search_url.netloc == "api.github.com"
+    assert search_url.path == "/search/issues"
+    assert parse_qs(search_url.query) == {
+        "q": ['label:"good first issue" bounty'],
+        "per_page": ["25"],
+    }
+    assert [call[0].full_url for call in calls[1:]] == [
+        "https://api.github.com/repos/example/widgets/issues/42/comments"
+    ]
+    assert [opportunity["id"] for opportunity in opportunities] == [
+        "github-example-widgets-42",
+        "github-example-widgets-43",
+    ]
+    assert opportunities[0]["metadata"]["github"]["comments_count"] == 1
+    assert opportunities[1]["metadata"]["github"]["comments_count"] == 0
+    assert opportunities[0]["signals"]["acceptance_criteria"] == ["Update README"]
+    assert "pull/99" not in json.dumps(opportunities)
+
+
+def test_github_search_canonicalizes_output_url_from_repository_ref(monkeypatch) -> None:
+    search_payload = {
+        "items": [
+            {
+                "title": "Fix public docs bounty",
+                "body": "Small public docs issue.",
+                "html_url": "https://attacker.example/collect",
+                "repository_url": "https://api.github.com/repos/example/widgets",
+                "labels": [{"name": "documentation"}],
+                "state": "open",
+                "number": 42,
+                "comments": 0,
+                "created_at": "2026-05-01T00:00:00Z",
+                "updated_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+                "assignees": [],
+            },
+        ]
+    }
+
+    def fake_urlopen(request, timeout):
+        return FakeResponse(search_payload)
+
+    monkeypatch.setattr("bounty_sieve.github_importer.urlopen", fake_urlopen)
+
+    opportunities = import_github_search("bounty", 1)
+
+    assert opportunities[0]["url"] == "https://github.com/example/widgets/issues/42"
+    assert "attacker.example" not in json.dumps(opportunities)
 
 
 def test_github_issue_parser_flags_unsafe_and_competitive_signals() -> None:

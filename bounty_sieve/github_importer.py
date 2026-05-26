@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlparse
+from urllib.parse import urlencode, urlparse
 from urllib.request import Request, urlopen
 
 
@@ -40,6 +40,37 @@ def import_github_issue_url(url: str) -> dict[str, Any]:
     issue = _fetch_json(_api_url(f"/repos/{issue_ref.full_repo}/issues/{issue_ref.number}"))
     comments = _fetch_comments(issue, issue_ref)
     return github_issue_to_opportunity(url, issue_ref, issue, comments)
+
+
+def import_github_search(query: str, limit: int = 10) -> list[dict[str, Any]]:
+    """Fetch public GitHub issue search results as normalized opportunities."""
+    normalized_query = query.strip()
+    if not normalized_query:
+        raise GitHubImportError("--source github-search requires --query QUERY")
+    if limit < 1 or limit > 50:
+        raise GitHubImportError("--limit must be between 1 and 50")
+
+    payload = _fetch_json(_github_search_api_url(normalized_query, limit))
+    items = payload.get("items") if isinstance(payload, dict) else None
+    if not isinstance(items, list):
+        raise GitHubImportError("GitHub search response did not include an items list")
+
+    opportunities: list[dict[str, Any]] = []
+    for item in items:
+        if not isinstance(item, dict) or "pull_request" in item:
+            continue
+        issue_ref = _issue_ref_from_search_item(item)
+        safe_item = {**item, "html_url": _github_issue_html_url(issue_ref)}
+        comments = _fetch_comments(item, issue_ref)
+        opportunities.append(
+            github_issue_to_opportunity(
+                safe_item["html_url"],
+                issue_ref,
+                safe_item,
+                comments,
+            )
+        )
+    return opportunities
 
 
 def import_url_list(path: str) -> tuple[list[dict[str, Any]], list[str]]:
@@ -162,8 +193,41 @@ def _api_url(path: str) -> str:
     return f"{GITHUB_API}{path}"
 
 
+def _github_search_api_url(query: str, limit: int) -> str:
+    return f"{_api_url('/search/issues')}?{urlencode({'q': query, 'per_page': str(limit)})}"
+
+
 def _comments_api_url(issue_ref: GitHubIssueRef) -> str:
     return _api_url(f"/repos/{issue_ref.full_repo}/issues/{issue_ref.number}/comments")
+
+
+def _github_issue_html_url(issue_ref: GitHubIssueRef) -> str:
+    return f"https://github.com/{issue_ref.full_repo}/issues/{issue_ref.number}"
+
+
+def _issue_ref_from_search_item(item: dict[str, Any]) -> GitHubIssueRef:
+    number = item.get("number")
+    if not isinstance(number, int) or isinstance(number, bool):
+        raise GitHubImportError("GitHub search item was missing an issue number")
+
+    repository_url = item.get("repository_url")
+    if isinstance(repository_url, str):
+        parsed = urlparse(repository_url)
+        expected_prefix = "/repos/"
+        if (
+            parsed.scheme == "https"
+            and parsed.netloc.lower() == "api.github.com"
+            and parsed.path.startswith(expected_prefix)
+        ):
+            parts = parsed.path[len(expected_prefix) :].split("/")
+            if len(parts) == 2 and all(parts):
+                return GitHubIssueRef(owner=parts[0], repo=parts[1], number=number)
+
+    html_url = item.get("html_url")
+    if isinstance(html_url, str):
+        return parse_github_issue_url(html_url)
+
+    raise GitHubImportError("GitHub search item was missing repository information")
 
 
 def _issue_id(issue_ref: GitHubIssueRef) -> str:

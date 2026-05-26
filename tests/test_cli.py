@@ -180,10 +180,12 @@ def test_discover_help_lists_agent_intake_sources() -> None:
 
     assert result.returncode == 0
     assert "github-issue" in result.stdout
+    assert "github-search" in result.stdout
     assert "url-list" in result.stdout
     assert "read-only public" in result.stdout
-    assert "URL fetches" in result.stdout
-    assert "Preview github-issue or url-list imports" in result.stdout
+    assert "fetches" in result.stdout
+    assert "Preview github-issue, github-search, or url-list" in result.stdout
+    assert "imports as compact JSON" in result.stdout
 
 
 def test_cli_rejects_invalid_fixture_source(tmp_path: Path) -> None:
@@ -239,6 +241,78 @@ def test_cli_github_issue_dry_run_prints_normalized_json_without_writing(
             "title": "Fix README install step",
             "summary": "Document the missing CLI install command.",
             "url": url,
+            "platform": "github",
+            "repo": "example/widgets",
+            "source": "github-issue",
+            "labels": ["documentation"],
+            "reward": {"amount": 125, "currency": "USD", "type": "fixed"},
+            "signals": {
+                "requires_secret_access": False,
+                "requires_prompt_exfiltration": False,
+                "requires_token_or_unknown_asset": False,
+                "star_gated": False,
+                "duplicate_pr_swarm": False,
+                "clarity": "unknown",
+                "repo_activity": "unknown",
+                "competition": "unknown",
+                "complexity": "unknown",
+                "tech": [],
+                "scope": "unknown",
+                "acceptance_criteria": [],
+            },
+        }
+    ]
+    assert captured.out == json.dumps(payload, separators=(",", ":"), sort_keys=True) + "\n"
+    assert not out.exists()
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_cli_github_search_dry_run_prints_normalized_json_without_writing(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    out = tmp_path / "should-not-exist.json"
+
+    def fake_import(query: str, limit: int) -> list[dict]:
+        assert query == 'label:"good first issue" bounty'
+        assert limit == 10
+        return [
+            {
+                "id": "github-example-widgets-42",
+                "title": "Fix README install step",
+                "summary": "Document the missing CLI install command.",
+                "url": "https://github.com/example/widgets/issues/42",
+                "platform": "github",
+                "repo": "example/widgets",
+                "source": "github-issue",
+                "labels": ["documentation"],
+                "reward": {"amount": 125, "currency": "usd", "type": "fixed"},
+            }
+        ]
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("bounty_sieve.__main__.import_github_search", fake_import)
+
+    result = cli_main(
+        [
+            "discover",
+            "--source",
+            "github-search",
+            "--query",
+            'label:"good first issue" bounty',
+            "--dry-run",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    assert result == 0
+    assert captured.err == ""
+    assert payload == [
+        {
+            "id": "github-example-widgets-42",
+            "title": "Fix README install step",
+            "summary": "Document the missing CLI install command.",
+            "url": "https://github.com/example/widgets/issues/42",
             "platform": "github",
             "repo": "example/widgets",
             "source": "github-issue",
@@ -358,9 +432,66 @@ def test_cli_dry_run_is_only_valid_for_github_issue_or_url_list(tmp_path: Path) 
 
         assert result.returncode == 2
         assert (
-            "--dry-run can only be used with --source github-issue or --source url-list"
+            "--dry-run can only be used with --source github-issue, --source github-search, or --source url-list"
             in result.stderr
         )
+        assert result.stdout == ""
+        assert not out.exists()
+
+
+def test_cli_github_search_argument_errors_do_not_fetch_network(tmp_path: Path) -> None:
+    out = tmp_path / "discovered.json"
+    cases = [
+        (
+            ["discover", "--source", "github-search", "--dry-run"],
+            "--source github-search requires --query QUERY",
+        ),
+        (
+            [
+                "discover",
+                "--source",
+                "github-search",
+                "--query",
+                "bounty",
+                "--url",
+                "https://github.com/example/widgets/issues/42",
+                "--dry-run",
+            ],
+            "--url cannot be used with --source github-search",
+        ),
+        (
+            [
+                "discover",
+                "--source",
+                "github-search",
+                "--query",
+                "bounty",
+                "--input",
+                str(tmp_path / "urls.txt"),
+                "--dry-run",
+            ],
+            "--input cannot be used with --source github-search",
+        ),
+        (
+            [
+                "discover",
+                "--source",
+                "github-search",
+                "--query",
+                "bounty",
+                "--limit",
+                "51",
+                "--dry-run",
+            ],
+            "--limit must be between 1 and 50",
+        ),
+    ]
+
+    for args, message in cases:
+        result = run_cli_unchecked(*args)
+
+        assert result.returncode == 2
+        assert message in result.stderr
         assert result.stdout == ""
         assert not out.exists()
 
