@@ -99,6 +99,7 @@ def test_cli_help_lists_offline_demo_commands() -> None:
     assert "validate" in result.stdout
     assert "discover" in result.stdout
     assert "score" in result.stdout
+    assert "rank" in result.stdout
     assert "report" in result.stdout
     assert "demo" in result.stdout
     assert "doctor" in result.stdout
@@ -985,6 +986,157 @@ def test_score_without_out_does_not_write_output_file(tmp_path: Path) -> None:
 
     assert result.stderr == ""
     assert sorted(path.name for path in tmp_path.iterdir()) == ["opportunities.json"]
+
+
+def test_rank_table_sorts_by_recommendation_then_roi_and_respects_limit(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "opportunities.json"
+    source.write_text(
+        json.dumps(
+            {
+                "opportunities": [
+                    {
+                        "id": "watch-complex",
+                        "title": "High reward but complex backend refactor",
+                        "summary": "Large task with a fixed reward.",
+                        "url": "https://github.com/example/app/issues/3",
+                        "reward": {"amount": 1000, "currency": "USD", "type": "fixed"},
+                        "signals": {
+                            "clarity": "high",
+                            "repo_activity": "active",
+                            "competition": "low",
+                            "complexity": "high",
+                            "scope": "large",
+                            "tech": ["python"],
+                        },
+                    },
+                    {
+                        "id": "pursue-lower-roi",
+                        "title": "Fix flaky CLI test",
+                        "summary": "Small deterministic test repair.",
+                        "url": "https://github.com/example/app/issues/2",
+                        "reward": {"amount": 150, "currency": "USD", "type": "fixed"},
+                        "signals": {
+                            "clarity": "medium",
+                            "repo_activity": "active",
+                            "competition": "low",
+                            "complexity": "low",
+                            "scope": "small",
+                            "tech": ["python"],
+                        },
+                    },
+                    {
+                        "id": "pursue-higher-roi",
+                        "title": "Fix docs quickstart",
+                        "summary": "Tiny docs task with clear acceptance criteria.",
+                        "url": "https://github.com/example/app/issues/1",
+                        "reward": {"amount": 100, "currency": "USD", "type": "fixed"},
+                        "signals": {
+                            "clarity": "high",
+                            "repo_activity": "active",
+                            "competition": "low",
+                            "complexity": "low",
+                            "scope": "tiny",
+                            "tech": ["markdown", "cli"],
+                        },
+                    },
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = run_cli("rank", str(source), "--limit", "2")
+
+    lines = result.stdout.splitlines()
+    rows = lines[2:]
+    assert result.stderr == ""
+    assert lines[0].startswith("Recommendation")
+    assert "ROI" in lines[0]
+    assert "Reward" in lines[0]
+    assert "Title" in lines[0]
+    assert "URL" in lines[0]
+    assert len(rows) == 2
+    assert rows[0].startswith("pursue")
+    assert "Fix docs quickstart" in rows[0]
+    assert "https://github.com/example/app/issues/1" in rows[0]
+    assert rows[1].startswith("pursue")
+    assert "Fix flaky CLI test" in rows[1]
+    assert "https://github.com/example/app/issues/2" in rows[1]
+    assert "High reward but complex backend refactor" not in result.stdout
+
+
+def test_rank_json_output_shape(tmp_path: Path) -> None:
+    source = tmp_path / "opportunities.json"
+    source.write_text(
+        json.dumps(
+            {
+                "opportunities": [
+                    {
+                        "id": "watch-vague",
+                        "title": "Investigate vague performance issue",
+                        "summary": "Unclear performance work.",
+                        "url": "https://github.com/example/app/issues/2",
+                        "signals": {"clarity": "low"},
+                    },
+                    {
+                        "id": "pursue-docs",
+                        "title": "Fix docs quickstart",
+                        "summary": "Tiny docs task.",
+                        "url": "https://github.com/example/app/issues/1",
+                        "reward": {"amount": 100, "currency": "USD", "type": "fixed"},
+                        "signals": {
+                            "clarity": "high",
+                            "repo_activity": "active",
+                            "competition": "low",
+                            "complexity": "low",
+                            "scope": "tiny",
+                            "tech": ["markdown"],
+                        },
+                    },
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = run_cli("rank", str(source), "--limit", "1", "--json")
+
+    payload = json.loads(result.stdout)
+    assert result.stderr == ""
+    assert payload["ok"] is True
+    assert payload["total"] == 2
+    assert payload["shown"] == 1
+    assert len(payload["items"]) == 1
+    item = payload["items"][0]
+    assert set(item) == {
+        "id",
+        "title",
+        "url",
+        "recommendation",
+        "roi_score",
+        "reward_estimate_usd",
+        "reasons",
+    }
+    assert item["id"] == "pursue-docs"
+    assert item["title"] == "Fix docs quickstart"
+    assert item["url"] == "https://github.com/example/app/issues/1"
+    assert item["recommendation"] == "pursue"
+    assert isinstance(item["roi_score"], int)
+    assert item["reward_estimate_usd"] == 100
+    assert isinstance(item["reasons"], list)
+
+
+def test_rank_rejects_non_positive_limit(tmp_path: Path) -> None:
+    source = tmp_path / "opportunities.json"
+    source.write_text("[]", encoding="utf-8")
+
+    result = run_cli_unchecked("rank", str(source), "--limit", "0")
+
+    assert result.returncode == 2
+    assert result.stdout == ""
+    assert "bounty-sieve rank: error: --limit must be greater than 0" in result.stderr
 
 
 def test_score_summary_prints_concise_stdout_after_writing(tmp_path: Path) -> None:

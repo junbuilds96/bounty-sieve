@@ -111,6 +111,22 @@ def main(argv: list[str] | None = None) -> int:
         help="Print machine-readable score summary JSON after writing.",
     )
 
+    rank_parser = subparsers.add_parser(
+        "rank", help="Print a ranked terminal view of discovered opportunities."
+    )
+    rank_parser.add_argument("input")
+    rank_parser.add_argument(
+        "--limit",
+        type=int,
+        help="Maximum ranked opportunities to show; default all.",
+    )
+    rank_parser.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="Print machine-readable JSON and no table.",
+    )
+
     report_parser = subparsers.add_parser("report", help="Render a markdown report.")
     report_parser.add_argument("input")
     report_parser.add_argument("--out", required=True)
@@ -279,6 +295,22 @@ def main(argv: list[str] | None = None) -> int:
             print(render_score_stdout_summary_json(scored, args.out))
         return 0
 
+    if args.command == "rank":
+        if args.limit is not None and args.limit <= 0:
+            rank_parser.error("--limit must be greater than 0")
+        try:
+            opportunities = load_json_opportunities(args.input)
+        except OpportunityValidationError as exc:
+            rank_parser.error(str(exc))
+        scored = score_opportunities(opportunities)
+        ranked = _rank_scored_opportunities(scored)
+        shown = ranked if args.limit is None else ranked[: args.limit]
+        if args.json_output:
+            print(_render_rank_json(ranked, shown))
+        else:
+            print(_render_rank_table(shown))
+        return 0
+
     if args.command == "report":
         if args.out == "-" and (args.summary or args.summary_json):
             report_parser.error(
@@ -357,6 +389,92 @@ def _render_discover_summary_json(opportunities: list[dict], output_path: str | 
         "ids": [item["id"] for item in opportunities],
     }
     return json.dumps(payload, separators=(",", ":"))
+
+
+def _rank_scored_opportunities(scored: list[dict]) -> list[dict]:
+    recommendation_priority = {"pursue": 0, "watch": 1, "reject": 2}
+
+    def sort_key(indexed_item: tuple[int, dict]) -> tuple[int, int, int]:
+        index, item = indexed_item
+        score = item.get("score", {})
+        recommendation = score.get("recommendation")
+        priority = recommendation_priority.get(recommendation, 99)
+        roi_score = score.get("roi_score", 0)
+        roi = roi_score if isinstance(roi_score, int | float) else 0
+        return priority, -int(roi), index
+
+    return [item for _, item in sorted(enumerate(scored), key=sort_key)]
+
+
+def _render_rank_json(ranked: list[dict], shown: list[dict]) -> str:
+    payload = {
+        "ok": True,
+        "total": len(ranked),
+        "shown": len(shown),
+        "items": [_rank_item_payload(item) for item in shown],
+    }
+    return json.dumps(payload, separators=(",", ":"), sort_keys=True)
+
+
+def _rank_item_payload(item: dict) -> dict:
+    score = item.get("score", {})
+    return {
+        "id": item.get("id"),
+        "title": item.get("title"),
+        "url": item.get("url"),
+        "recommendation": score.get("recommendation"),
+        "roi_score": score.get("roi_score"),
+        "reward_estimate_usd": score.get("reward_estimate_usd"),
+        "reasons": score.get("reasons", []),
+    }
+
+
+def _render_rank_table(shown: list[dict]) -> str:
+    headers = ["Recommendation", "ROI", "Reward", "Title", "Public URL"]
+    rows = [_rank_table_row(item) for item in shown]
+    widths = [
+        max([len(headers[column]), *[len(row[column]) for row in rows]])
+        for column in range(len(headers) - 1)
+    ]
+    lines = [
+        _format_rank_table_line(headers, widths),
+        _format_rank_table_line(["-" * len(header) for header in headers], widths),
+    ]
+    lines.extend(_format_rank_table_line(row, widths) for row in rows)
+    return "\n".join(lines)
+
+
+def _rank_table_row(item: dict) -> list[str]:
+    score = item.get("score", {})
+    roi_score = score.get("roi_score", 0)
+    reward = score.get("reward_estimate_usd", 0)
+    return [
+        str(score.get("recommendation", "")),
+        str(roi_score),
+        _format_rank_reward(reward),
+        _truncate_text(str(item.get("title", "")), 48),
+        str(item.get("url") or ""),
+    ]
+
+
+def _format_rank_table_line(cells: list[str], widths: list[int]) -> str:
+    padded = [cells[index].ljust(widths[index]) for index in range(len(widths))]
+    padded.append(cells[-1])
+    return "  ".join(padded).rstrip()
+
+
+def _format_rank_reward(value: object) -> str:
+    if isinstance(value, int | float):
+        return f"${int(value):,}"
+    return "$0"
+
+
+def _truncate_text(text: str, max_width: int) -> str:
+    if len(text) <= max_width:
+        return text
+    if max_width <= 3:
+        return text[:max_width]
+    return text[: max_width - 3].rstrip() + "..."
 
 
 if __name__ == "__main__":

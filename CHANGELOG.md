@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 This project follows a lightweight changelog format inspired by Keep a Changelog and uses semantic versioning for public releases.
 
+## [Unreleased]
+
+### Added
+
+- `rank INPUT` command for an offline, read-only ranked terminal view with table and JSON output modes.
+
 ## [0.3.0] - 2026-05-22
 
 ### Added
