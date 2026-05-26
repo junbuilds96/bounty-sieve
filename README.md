@@ -49,11 +49,12 @@ Agent-safe default workflow:
 ```bash
 python -m bounty_sieve discover --source json --input examples/opportunities.sample.json --out out/discovered.json
 python -m bounty_sieve rank out/discovered.json --limit 10
+python -m bounty_sieve next out/discovered.json
 python -m bounty_sieve score out/discovered.json --out out/scored.json
 python -m bounty_sieve report out/scored.json --out out/report.md
 ```
 
-Use `rank` for an immediate local terminal shortlist after discovery. Add `--summary` to the report command when an agent needs a concise stdout recap after the Markdown file is written.
+Use `rank` for an immediate local terminal shortlist after discovery, or `next` to print the single best ranked opportunity for immediate manual selection. Add `--summary` to the report command when an agent needs a concise stdout recap after the Markdown file is written.
 
 Agents may use public URL intake only when the human explicitly provides or approves the URL source:
 
@@ -138,6 +139,7 @@ For a compact terminal view before opening artifacts, run:
 
 ```bash
 python -m bounty_sieve rank out/discovered.json --limit 10
+python -m bounty_sieve next out/discovered.json
 ```
 
 Open `out/report.md`. The report is a decision brief with a plain-language summary, fastest safe wins, risky or high-reward items, a manual checklist for every item, and clear watch/reject reasons. Add `--summary` to also print the report path, counts, and summary sentence to stdout.

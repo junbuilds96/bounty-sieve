@@ -127,6 +127,17 @@ def main(argv: list[str] | None = None) -> int:
         help="Print machine-readable JSON and no table.",
     )
 
+    next_parser = subparsers.add_parser(
+        "next", help="Print the single best next opportunity."
+    )
+    next_parser.add_argument("input")
+    next_parser.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="Print machine-readable JSON and no extra prose.",
+    )
+
     report_parser = subparsers.add_parser("report", help="Render a markdown report.")
     report_parser.add_argument("input")
     report_parser.add_argument("--out", required=True)
@@ -311,6 +322,19 @@ def main(argv: list[str] | None = None) -> int:
             print(_render_rank_table(shown))
         return 0
 
+    if args.command == "next":
+        try:
+            opportunities = load_json_opportunities(args.input)
+        except OpportunityValidationError as exc:
+            next_parser.error(str(exc))
+        ranked = _rank_scored_opportunities(score_opportunities(opportunities))
+        selected = ranked[0] if ranked else None
+        if args.json_output:
+            print(_render_next_json(len(ranked), selected))
+        else:
+            print(_render_next_human(selected))
+        return 0
+
     if args.command == "report":
         if args.out == "-" and (args.summary or args.summary_json):
             report_parser.error(
@@ -427,6 +451,42 @@ def _rank_item_payload(item: dict) -> dict:
         "reward_estimate_usd": score.get("reward_estimate_usd"),
         "reasons": score.get("reasons", []),
     }
+
+
+def _render_next_json(total: int, selected: dict | None) -> str:
+    payload = {
+        "ok": True,
+        "total": total,
+        "item": _rank_item_payload(selected) if selected else None,
+    }
+    if selected is None:
+        payload["message"] = _next_empty_message()
+    return json.dumps(payload, separators=(",", ":"), sort_keys=True)
+
+
+def _render_next_human(selected: dict | None) -> str:
+    if selected is None:
+        return _next_empty_message()
+
+    score = selected.get("score", {})
+    lines = [
+        f"Next opportunity: {selected.get('title', '')}",
+        f"ID: {selected.get('id', '')}",
+        f"Recommendation: {score.get('recommendation', '')}",
+        f"ROI: {score.get('roi_score', 0)}",
+        f"Reward: {_format_rank_reward(score.get('reward_estimate_usd', 0))}",
+    ]
+    if selected.get("url"):
+        lines.append(f"URL: {selected['url']}")
+    reasons = score.get("reasons", [])
+    if reasons:
+        lines.append("Reasons:")
+        lines.extend(f"- {reason}" for reason in reasons)
+    return "\n".join(lines)
+
+
+def _next_empty_message() -> str:
+    return "No opportunities found. Add opportunities first, then rerun next."
 
 
 def _render_rank_table(shown: list[dict]) -> str:

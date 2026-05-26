@@ -100,6 +100,7 @@ def test_cli_help_lists_offline_demo_commands() -> None:
     assert "discover" in result.stdout
     assert "score" in result.stdout
     assert "rank" in result.stdout
+    assert "next" in result.stdout
     assert "report" in result.stdout
     assert "demo" in result.stdout
     assert "doctor" in result.stdout
@@ -1137,6 +1138,142 @@ def test_rank_rejects_non_positive_limit(tmp_path: Path) -> None:
     assert result.returncode == 2
     assert result.stdout == ""
     assert "bounty-sieve rank: error: --limit must be greater than 0" in result.stderr
+
+
+def test_next_human_output_prints_best_ranked_opportunity(tmp_path: Path) -> None:
+    source = tmp_path / "opportunities.json"
+    source.write_text(
+        json.dumps(
+            {
+                "opportunities": [
+                    {
+                        "id": "watch-complex",
+                        "title": "High reward but complex backend refactor",
+                        "summary": "Large task with a fixed reward.",
+                        "url": "https://github.com/example/app/issues/3",
+                        "reward": {"amount": 1000, "currency": "USD", "type": "fixed"},
+                        "signals": {
+                            "clarity": "high",
+                            "repo_activity": "active",
+                            "competition": "low",
+                            "complexity": "high",
+                            "scope": "large",
+                            "tech": ["python"],
+                        },
+                    },
+                    {
+                        "id": "pursue-lower-roi",
+                        "title": "Fix flaky CLI test",
+                        "summary": "Small deterministic test repair.",
+                        "url": "https://github.com/example/app/issues/2",
+                        "reward": {"amount": 150, "currency": "USD", "type": "fixed"},
+                        "signals": {
+                            "clarity": "medium",
+                            "repo_activity": "active",
+                            "competition": "low",
+                            "complexity": "low",
+                            "scope": "small",
+                            "tech": ["python"],
+                        },
+                    },
+                    {
+                        "id": "pursue-higher-roi",
+                        "title": "Fix docs quickstart",
+                        "summary": "Tiny docs task with clear acceptance criteria.",
+                        "url": "https://github.com/example/app/issues/1",
+                        "reward": {"amount": 100, "currency": "USD", "type": "fixed"},
+                        "signals": {
+                            "clarity": "high",
+                            "repo_activity": "active",
+                            "competition": "low",
+                            "complexity": "low",
+                            "scope": "tiny",
+                            "tech": ["markdown", "cli"],
+                        },
+                    },
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = run_cli("next", str(source))
+
+    assert result.stderr == ""
+    assert "Next opportunity: Fix docs quickstart" in result.stdout
+    assert "ID: pursue-higher-roi" in result.stdout
+    assert "Recommendation: pursue" in result.stdout
+    assert "Reward: $100" in result.stdout
+    assert "URL: https://github.com/example/app/issues/1" in result.stdout
+    assert "Reasons:" in result.stdout
+    assert "Fix flaky CLI test" not in result.stdout
+    assert "High reward but complex backend refactor" not in result.stdout
+
+
+def test_next_json_output_shape(tmp_path: Path) -> None:
+    source = tmp_path / "opportunities.json"
+    source.write_text(
+        json.dumps(
+            {
+                "opportunities": [
+                    {
+                        "id": "watch-vague",
+                        "title": "Investigate vague performance issue",
+                        "summary": "Unclear performance work.",
+                        "url": "https://github.com/example/app/issues/2",
+                        "signals": {"clarity": "low"},
+                    },
+                    {
+                        "id": "pursue-docs",
+                        "title": "Fix docs quickstart",
+                        "summary": "Tiny docs task.",
+                        "url": "https://github.com/example/app/issues/1",
+                        "reward": {"amount": 100, "currency": "USD", "type": "fixed"},
+                        "signals": {
+                            "clarity": "high",
+                            "repo_activity": "active",
+                            "competition": "low",
+                            "complexity": "low",
+                            "scope": "tiny",
+                            "tech": ["markdown"],
+                        },
+                    },
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = run_cli("next", str(source), "--json")
+
+    payload = json.loads(result.stdout)
+    assert result.stderr == ""
+    assert payload["ok"] is True
+    assert payload["total"] == 2
+    assert set(payload["item"]) == {
+        "id",
+        "title",
+        "url",
+        "recommendation",
+        "roi_score",
+        "reward_estimate_usd",
+        "reasons",
+    }
+    assert payload["item"]["id"] == "pursue-docs"
+    assert payload["item"]["title"] == "Fix docs quickstart"
+    assert payload["item"]["recommendation"] == "pursue"
+    assert payload["item"]["reward_estimate_usd"] == 100
+    assert isinstance(payload["item"]["reasons"], list)
+
+
+def test_next_empty_input_prints_no_op_message(tmp_path: Path) -> None:
+    source = tmp_path / "opportunities.json"
+    source.write_text('{"opportunities": []}', encoding="utf-8")
+
+    result = run_cli("next", str(source))
+
+    assert result.stderr == ""
+    assert result.stdout == "No opportunities found. Add opportunities first, then rerun next.\n"
 
 
 def test_score_summary_prints_concise_stdout_after_writing(tmp_path: Path) -> None:
