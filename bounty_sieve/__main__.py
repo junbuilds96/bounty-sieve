@@ -147,6 +147,29 @@ def main(argv: list[str] | None = None) -> int:
         help="Print machine-readable JSON and no table.",
     )
 
+    search_preview_parser = subparsers.add_parser(
+        "search-preview",
+        help="Preview ranked public GitHub issues from a read-only search.",
+        description="Preview ranked public GitHub issues from a read-only search.",
+    )
+    search_preview_parser.add_argument(
+        "--query",
+        required=True,
+        help="GitHub issue search query.",
+    )
+    search_preview_parser.add_argument(
+        "--limit",
+        type=int,
+        default=10,
+        help="Maximum GitHub search results to import and preview; default 10, max 50.",
+    )
+    search_preview_parser.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="Print compact machine-readable JSON and no markdown.",
+    )
+
     shortlist_parser = subparsers.add_parser(
         "shortlist",
         help="Export a local read-only shortlist for review or agent handoff.",
@@ -415,6 +438,22 @@ def main(argv: list[str] | None = None) -> int:
             print(_render_rank_json(ranked, shown))
         else:
             print(_render_rank_table(shown))
+        return 0
+
+    if args.command == "search-preview":
+        if args.limit < 1 or args.limit > 50:
+            search_preview_parser.error("--limit must be between 1 and 50")
+        try:
+            opportunities = normalize_opportunities(
+                import_github_search(args.query, args.limit)
+            )
+        except (GitHubImportError, OpportunityValidationError) as exc:
+            search_preview_parser.error(str(exc))
+        ranked = _rank_scored_opportunities(score_opportunities(opportunities))
+        if args.json_output:
+            print(_render_search_preview_json(args.query, ranked))
+        else:
+            print(_render_search_preview_markdown(args.query, args.limit, ranked))
         return 0
 
     if args.command == "shortlist":
@@ -867,6 +906,72 @@ def _render_rank_json(ranked: list[dict], shown: list[dict]) -> str:
     return json.dumps(payload, separators=(",", ":"), sort_keys=True)
 
 
+def _render_search_preview_json(query: str, ranked: list[dict]) -> str:
+    payload = {
+        "ok": True,
+        "query": query,
+        "total": len(ranked),
+        "ranked": [_search_preview_item_payload(item) for item in ranked],
+        "safety_boundary": _search_preview_safety_boundary_text(),
+    }
+    return json.dumps(payload, separators=(",", ":"), sort_keys=True)
+
+
+def _render_search_preview_markdown(query: str, limit: int, ranked: list[dict]) -> str:
+    lines = [
+        "# Bounty Sieve Search Preview",
+        "",
+        "## Safety Boundary",
+        "",
+        _search_preview_safety_boundary_text(),
+        "",
+        "## Search",
+        "",
+        f"- Query: {query}",
+        f"- Limit: {limit}",
+        f"- Imported and scored: {len(ranked)}",
+        "",
+        "## Ranked Opportunities",
+        "",
+    ]
+    if ranked:
+        for index, item in enumerate(ranked, start=1):
+            score = item.get("score", {})
+            lines.extend(
+                [
+                    f"### {index}. {item.get('title', '')}",
+                    "",
+                    f"- ID: {item.get('id', '')}",
+                    f"- Recommendation: {score.get('recommendation', '')}",
+                    f"- ROI: {score.get('roi_score', 0)}",
+                    f"- Repository: {item.get('repo') or 'not provided'}",
+                    f"- URL: {item.get('url') or 'not provided'}",
+                    "",
+                ]
+            )
+    else:
+        lines.extend(["No public GitHub issues matched the query after import filtering.", ""])
+
+    lines.extend(
+        [
+            "## Manual Approval Boundary",
+            "",
+            (
+                "Review the public issue manually before acting. This preview is not approval "
+                "to clone, claim work, comment, open PRs, log in, use credentials, touch "
+                "wallets, star repositories, or contact maintainers."
+            ),
+        ]
+    )
+    return "\n".join(lines)
+
+
+def _search_preview_item_payload(item: dict) -> dict:
+    payload = _rank_item_payload(item)
+    payload["repo"] = item.get("repo")
+    return payload
+
+
 def _rank_item_payload(item: dict) -> dict:
     score = item.get("score", {})
     return {
@@ -1021,6 +1126,15 @@ def _shortlist_safety_boundary_text() -> str:
         "network access, does not clone repositories, comment, contact maintainers, claim work, "
         "open PRs, log in, use credentials, touch wallets, star repositories, or approve action "
         "without separate human review."
+    )
+
+
+def _search_preview_safety_boundary_text() -> str:
+    return (
+        "This preview performs only read-only public GitHub API fetches, normalizes and scores "
+        "issues in memory, writes no files, and does not approve cloning, claiming work, "
+        "commenting, opening PRs, logging in, using credentials, touching wallets, starring "
+        "repositories, or contacting maintainers without separate human approval."
     )
 
 

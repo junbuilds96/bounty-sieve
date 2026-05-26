@@ -10,6 +10,8 @@ from pathlib import Path
 import bounty_sieve
 from bounty_sieve.__main__ import main as cli_main
 from bounty_sieve.doctor import run_doctor
+from bounty_sieve.github_importer import GitHubImportError
+from bounty_sieve.opportunities import OpportunityValidationError
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -279,6 +281,7 @@ def test_cli_help_lists_offline_demo_commands() -> None:
     assert "score" in result.stdout
     assert "compare" in result.stdout
     assert "rank" in result.stdout
+    assert "search-preview" in result.stdout
     assert "shortlist" in result.stdout
     assert "next" in result.stdout
     assert "explain" in result.stdout
@@ -1413,6 +1416,229 @@ def test_rank_rejects_non_positive_limit(tmp_path: Path) -> None:
     assert result.returncode == 2
     assert result.stdout == ""
     assert "bounty-sieve rank: error: --limit must be greater than 0" in result.stderr
+
+
+def test_search_preview_help_documents_read_only_github_preview() -> None:
+    result = run_cli_unchecked("search-preview", "--help")
+
+    assert result.returncode == 0
+    assert "Preview ranked public GitHub issues from a read-only search." in result.stdout
+    assert "--query" in result.stdout
+    assert "--limit" in result.stdout
+    assert "--json" in result.stdout
+
+
+def test_search_preview_markdown_uses_importer_scores_and_writes_no_files(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    calls = []
+
+    def fake_import(query: str, limit: int) -> list[dict]:
+        calls.append((query, limit))
+        return [
+            {
+                "id": "github-example-app-2",
+                "title": "Investigate vague performance issue",
+                "summary": "Unclear performance work.",
+                "url": "https://github.com/example/app/issues/2",
+                "platform": "github",
+                "repo": "example/app",
+                "source": "github-issue",
+                "signals": {"clarity": "low"},
+            },
+            {
+                "id": "github-example-app-1",
+                "title": "Fix docs quickstart",
+                "summary": "Tiny docs task.",
+                "url": "https://github.com/example/app/issues/1",
+                "platform": "github",
+                "repo": "example/app",
+                "source": "github-issue",
+                "reward": {"amount": 100, "currency": "USD", "type": "fixed"},
+                "signals": {
+                    "clarity": "high",
+                    "repo_activity": "active",
+                    "competition": "low",
+                    "complexity": "low",
+                    "scope": "tiny",
+                    "tech": ["markdown"],
+                },
+            },
+        ]
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("bounty_sieve.__main__.import_github_search", fake_import)
+
+    result = cli_main(["search-preview", "--query", "bounty docs"])
+
+    captured = capsys.readouterr()
+    assert result == 0
+    assert calls == [("bounty docs", 10)]
+    assert captured.err == ""
+    assert "# Bounty Sieve Search Preview" in captured.out
+    assert "## Safety Boundary" in captured.out
+    assert "read-only public GitHub API fetches" in captured.out
+    assert "- Query: bounty docs" in captured.out
+    assert "- Limit: 10" in captured.out
+    assert "- Imported and scored: 2" in captured.out
+    assert captured.out.index("Fix docs quickstart") < captured.out.index(
+        "Investigate vague performance issue"
+    )
+    assert "- ID: github-example-app-1" in captured.out
+    assert "- Recommendation: pursue" in captured.out
+    assert "- ROI:" in captured.out
+    assert "- Repository: example/app" in captured.out
+    assert "- URL: https://github.com/example/app/issues/1" in captured.out
+    assert "Manual Approval Boundary" in captured.out
+    assert "not approval to clone, claim work, comment, open PRs" in captured.out
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_search_preview_json_is_compact_ranked_and_writes_no_files(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    def fake_import(query: str, limit: int) -> list[dict]:
+        assert query == 'label:"good first issue" bounty'
+        assert limit == 2
+        return [
+            {
+                "id": "github-example-app-2",
+                "title": "Investigate vague performance issue",
+                "summary": "Unclear performance work.",
+                "url": "https://github.com/example/app/issues/2",
+                "platform": "github",
+                "repo": "example/app",
+                "source": "github-issue",
+                "signals": {"clarity": "low"},
+            },
+            {
+                "id": "github-example-app-1",
+                "title": "Fix docs quickstart",
+                "summary": "Tiny docs task.",
+                "url": "https://github.com/example/app/issues/1",
+                "platform": "github",
+                "repo": "example/app",
+                "source": "github-issue",
+                "reward": {"amount": 100, "currency": "USD", "type": "fixed"},
+                "signals": {
+                    "clarity": "high",
+                    "repo_activity": "active",
+                    "competition": "low",
+                    "complexity": "low",
+                    "scope": "tiny",
+                    "tech": ["markdown"],
+                },
+            },
+        ]
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("bounty_sieve.__main__.import_github_search", fake_import)
+
+    result = cli_main(
+        [
+            "search-preview",
+            "--query",
+            'label:"good first issue" bounty',
+            "--limit",
+            "2",
+            "--json",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    assert result == 0
+    assert captured.err == ""
+    assert payload["ok"] is True
+    assert payload["query"] == 'label:"good first issue" bounty'
+    assert payload["total"] == 2
+    assert [item["id"] for item in payload["ranked"]] == [
+        "github-example-app-1",
+        "github-example-app-2",
+    ]
+    item = payload["ranked"][0]
+    assert set(item) == {
+        "id",
+        "title",
+        "url",
+        "repo",
+        "recommendation",
+        "roi_score",
+        "reward_estimate_usd",
+        "reasons",
+    }
+    assert item["repo"] == "example/app"
+    assert item["recommendation"] == "pursue"
+    assert item["reward_estimate_usd"] == 100
+    assert "writes no files" in payload["safety_boundary"]
+    assert "\n" not in captured.out.rstrip("\n")
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_search_preview_reports_import_and_validation_errors_as_argparse_errors(
+    monkeypatch, capsys
+) -> None:
+    def fake_import_error(query: str, limit: int) -> list[dict]:
+        raise GitHubImportError("GitHub fetch failed with HTTP 403")
+
+    monkeypatch.setattr("bounty_sieve.__main__.import_github_search", fake_import_error)
+
+    try:
+        cli_main(["search-preview", "--query", "bounty"])
+    except SystemExit as exc:
+        assert exc.code == 2
+    else:
+        raise AssertionError("expected argparse SystemExit")
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "bounty-sieve search-preview: error: GitHub fetch failed with HTTP 403" in (
+        captured.err
+    )
+    assert "Traceback" not in captured.err
+
+    def fake_validation_error(query: str, limit: int) -> list[dict]:
+        raise OpportunityValidationError("opportunities[0].id is required")
+
+    monkeypatch.setattr(
+        "bounty_sieve.__main__.import_github_search", fake_validation_error
+    )
+
+    try:
+        cli_main(["search-preview", "--query", "bounty"])
+    except SystemExit as exc:
+        assert exc.code == 2
+    else:
+        raise AssertionError("expected argparse SystemExit")
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "bounty-sieve search-preview: error: opportunities[0].id is required" in (
+        captured.err
+    )
+    assert "Traceback" not in captured.err
+
+
+def test_search_preview_rejects_invalid_limit_without_fetching_network(
+    monkeypatch, capsys
+) -> None:
+    def fake_import(query: str, limit: int) -> list[dict]:
+        raise AssertionError("search-preview should validate limit before importing")
+
+    monkeypatch.setattr("bounty_sieve.__main__.import_github_search", fake_import)
+
+    try:
+        cli_main(["search-preview", "--query", "bounty", "--limit", "51"])
+    except SystemExit as exc:
+        assert exc.code == 2
+    else:
+        raise AssertionError("expected argparse SystemExit")
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "bounty-sieve search-preview: error: --limit must be between 1 and 50" in (
+        captured.err
+    )
 
 
 def test_shortlist_help_documents_export_flags() -> None:

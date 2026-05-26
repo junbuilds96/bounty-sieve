@@ -125,6 +125,13 @@ For explicit public GitHub issue intake, use:
 python -m bounty_sieve discover --source github-issue --url https://github.com/octocat/Hello-World/issues/1 --out out/discovered.json
 ```
 
+To preview ranked public GitHub search results in the terminal without writing files, use:
+
+```bash
+python -m bounty_sieve search-preview --query 'label:"good first issue" bounty' --limit 10
+python -m bounty_sieve search-preview --query 'label:"good first issue" bounty' --json
+```
+
 For a newline-delimited URL file, use:
 
 ```bash
@@ -195,6 +202,12 @@ Import one public GitHub issue:
 
 ```bash
 python -m bounty_sieve discover --source github-issue --url https://github.com/octocat/Hello-World/issues/1 --out out/discovered.json
+```
+
+Preview ranked public GitHub search results without writing files:
+
+```bash
+python -m bounty_sieve search-preview --query 'label:"good first issue" bounty' --limit 10
 ```
 
 Import supported URLs from a text file:
