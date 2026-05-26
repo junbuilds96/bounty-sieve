@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from bounty_sieve.reporting import render_report
+from bounty_sieve.reporting import render_html_report, render_report
 from bounty_sieve.scoring import score_opportunity
 
 
@@ -70,3 +70,34 @@ def test_report_handles_empty_scored_input() -> None:
     assert "use credentials, star repos, claim work, or contact maintainers" in markdown
     assert markdown.index("## Clear Reject/Watch Reasons") < markdown.index("## Agent Handoff")
     assert markdown.index("## Agent Handoff") < markdown.index("## Next Actions")
+
+
+def test_html_report_escapes_opportunity_content() -> None:
+    scored = [
+        score_opportunity(
+            {
+                "id": "safe-html-escape",
+                "title": 'Fix <script>alert("x")</script> docs',
+                "summary": "Clarify A&B setup <without> private data.",
+                "reward": {"amount": 50, "currency": "USD", "type": "fixed"},
+                "signals": {
+                    "clarity": "high",
+                    "repo_activity": "active",
+                    "competition": "low",
+                    "complexity": "low",
+                    "scope": "tiny",
+                    "tech": ["markdown"],
+                },
+            }
+        )
+    ]
+
+    html = render_html_report(scored)
+
+    assert "<!doctype html>" in html
+    assert "Bounty Sieve Demo Report" in html
+    assert "Fastest Safe Wins" in html
+    assert "Safety Boundary" in html
+    assert '&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;' in html
+    assert "A&amp;B setup &lt;without&gt; private data." in html
+    assert '<script>alert("x")</script>' not in html

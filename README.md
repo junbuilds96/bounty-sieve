@@ -153,10 +153,10 @@ Validation errors point to the field that needs attention, for example `opportun
 
 ## Quick Demo
 
-Run the offline demo to generate local review artifacts:
+Run the offline demo to generate local review artifacts, including an optional HTML report:
 
 ```bash
-python -m bounty_sieve demo --out out/demo
+python -m bounty_sieve demo --out out/demo --html
 ```
 
 Sample output:
@@ -166,10 +166,11 @@ Wrote offline demo to out/demo
 - discovered: out/demo/discovered.json
 - scored: out/demo/scored.json
 - report: out/demo/report.md
+- html: out/demo/report.html
 Recommendations: pursue=2, watch=2, reject=3
 ```
 
-Open `out/demo/report.md` to review the decision brief and safety reasons. The demo uses only bundled fixtures and does not access the network.
+Open `out/demo/report.md` or `out/demo/report.html` to review the decision brief and safety reasons. The demo uses only bundled fixtures and does not access the network.
 
 ## Usage
 
@@ -242,23 +243,24 @@ python -m bounty_sieve report out/scored.json --out out/report.md --summary
 Run the full offline demo:
 
 ```bash
-python -m bounty_sieve demo --out out/demo
+python -m bounty_sieve demo --out out/demo --html
 ```
 
 The same commands are available through the installed script:
 
 ```bash
-bounty-sieve demo --out out/demo
+bounty-sieve demo --out out/demo --html
 ```
 
 ## Output Artifacts
 
-`demo` writes three files under the selected output directory. The JSON workflow writes the same shapes when you choose the paths yourself.
+`demo` writes three files under the selected output directory; add `--html` to also write `report.html`. The JSON workflow writes the same shapes when you choose the paths yourself.
 
 - `discovered.json`: raw imported opportunities from fixtures, JSON, GitHub issue intake, or URL-list intake
 - `scored.json`: deterministic scoring output with recommendation fields
 - `shortlist.md` or `shortlist.json`: compact read-only selection for manual review or agent handoff
 - `report.md`: Markdown decision brief for manual review
+- `report.html`: optional local HTML decision brief from `demo --html`
 
 Generated demo output is intentionally ignored by Git.
 

@@ -25,6 +25,7 @@ from bounty_sieve.opportunities import (
     normalize_opportunities,
 )
 from bounty_sieve.reporting import (
+    render_html_report,
     render_score_stdout_summary,
     render_score_stdout_summary_json,
     render_report,
@@ -202,6 +203,11 @@ def main(argv: list[str] | None = None) -> int:
 
     demo_parser = subparsers.add_parser("demo", help="Run fixture discovery, scoring, and report.")
     demo_parser.add_argument("--out", required=True)
+    demo_parser.add_argument(
+        "--html",
+        action="store_true",
+        help="Also write report.html for a local offline visual report.",
+    )
 
     doctor_parser = subparsers.add_parser("doctor", help="Run local onboarding health checks.")
     doctor_parser.add_argument(
@@ -473,16 +479,21 @@ def main(argv: list[str] | None = None) -> int:
         discovered_path = out_dir / "discovered.json"
         scored_path = out_dir / "scored.json"
         report_path = out_dir / "report.md"
+        html_report_path = out_dir / "report.html"
         opportunities = load_fixture_opportunities()
         scored = score_opportunities(opportunities)
         write_json(discovered_path, opportunities)
         write_json(scored_path, scored)
         write_text(report_path, render_report(scored))
+        if args.html:
+            write_text(html_report_path, render_html_report(scored))
         counts = Counter(item["score"]["recommendation"] for item in scored)
         print(f"Wrote offline demo to {out_dir}")
         print(f"- discovered: {discovered_path}")
         print(f"- scored: {scored_path}")
         print(f"- report: {report_path}")
+        if args.html:
+            print(f"- html: {html_report_path}")
         print(
             "Recommendations: "
             f"pursue={counts.get('pursue', 0)}, "

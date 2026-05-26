@@ -137,10 +137,10 @@ python -m bounty_sieve report out/scored.json --out out/report.md
 
 ## 快速演示
 
-运行离线演示，生成本地复核文件：
+运行离线演示，生成本地复核文件，也可以同时生成 HTML 报告：
 
 ```bash
-python -m bounty_sieve demo --out out/demo
+python -m bounty_sieve demo --out out/demo --html
 ```
 
 示例输出：
@@ -150,10 +150,11 @@ Wrote offline demo to out/demo
 - discovered: out/demo/discovered.json
 - scored: out/demo/scored.json
 - report: out/demo/report.md
+- html: out/demo/report.html
 Recommendations: pursue=2, watch=2, reject=3
 ```
 
-打开 `out/demo/report.md` 可以查看决策简报和安全原因。演示只使用项目内置 fixture，不访问网络。
+打开 `out/demo/report.md` 或 `out/demo/report.html` 可以查看决策简报和安全原因。演示只使用项目内置 fixture，不访问网络。
 
 ## 使用方式
 
@@ -203,22 +204,23 @@ python -m bounty_sieve report out/scored.json --out out/report.md --summary
 运行完整离线演示：
 
 ```bash
-python -m bounty_sieve demo --out out/demo
+python -m bounty_sieve demo --out out/demo --html
 ```
 
 安装后的脚本提供同样的命令：
 
 ```bash
-bounty-sieve demo --out out/demo
+bounty-sieve demo --out out/demo --html
 ```
 
 ## 输出文件
 
-`demo` 会在指定目录下写入三个文件。JSON 工作流也会写出相同结构的文件，只是路径由你自己指定。
+`demo` 会在指定目录下写入三个文件；加上 `--html` 会额外写入 `report.html`。JSON 工作流也会写出相同结构的文件，只是路径由你自己指定。
 
 - `discovered.json`：来自 fixture、JSON、GitHub issue 或 URL 列表导入的原始机会
 - `scored.json`：带推荐结论的确定性打分结果
 - `report.md`：供人工阅读和复核的 Markdown 决策简报
+- `report.html`：`demo --html` 生成的可选本地 HTML 决策简报
 
 演示生成的输出文件会被 Git 忽略，避免把本地运行结果提交到仓库。
 

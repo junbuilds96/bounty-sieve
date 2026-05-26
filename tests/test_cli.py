@@ -1946,9 +1946,11 @@ def test_demo_outputs_all_artifacts(tmp_path: Path) -> None:
     discovered = out_dir / "discovered.json"
     scored = out_dir / "scored.json"
     report = out_dir / "report.md"
+    html_report = out_dir / "report.html"
     assert discovered.exists()
     assert scored.exists()
     assert report.exists()
+    assert not html_report.exists()
     assert len(read_json(discovered)) == 7
     assert len(read_json(scored)) == 7
     assert "Bounty Sieve Decision Brief" in report.read_text(encoding="utf-8")
@@ -1956,4 +1958,32 @@ def test_demo_outputs_all_artifacts(tmp_path: Path) -> None:
     assert f"- discovered: {discovered}" in result.stdout
     assert f"- scored: {scored}" in result.stdout
     assert f"- report: {report}" in result.stdout
+    assert "Recommendations: pursue=2, watch=2, reject=3" in result.stdout
+
+
+def test_demo_html_flag_outputs_visual_report_artifact(tmp_path: Path) -> None:
+    out_dir = tmp_path / "demo"
+
+    result = run_cli("demo", "--out", str(out_dir), "--html")
+
+    discovered = out_dir / "discovered.json"
+    scored = out_dir / "scored.json"
+    report = out_dir / "report.md"
+    html_report = out_dir / "report.html"
+    html = html_report.read_text(encoding="utf-8")
+    assert discovered.exists()
+    assert scored.exists()
+    assert report.exists()
+    assert html_report.exists()
+    assert "<!doctype html>" in html
+    assert "Bounty Sieve Demo Report" in html
+    assert "Safety Boundary" in html
+    assert "Fastest Safe Wins" in html
+    assert "Risky / High-Reward Items" in html
+    assert "pursue: 2" in html
+    assert "watch: 2" in html
+    assert "reject: 3" in html
+    assert "safe-docs-quickstart" in html
+    assert "reject-unknown-token" in html
+    assert f"- html: {html_report}" in result.stdout
     assert "Recommendations: pursue=2, watch=2, reject=3" in result.stdout
