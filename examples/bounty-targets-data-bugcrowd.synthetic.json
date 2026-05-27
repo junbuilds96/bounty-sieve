@@ -1,0 +1,37 @@
+[
+  {
+    "name": "Example Bugcrowd",
+    "url": "https://bugcrowd.com/engagements/example-bugcrowd",
+    "allows_disclosure": true,
+    "managed_by_bugcrowd": true,
+    "safe_harbor": "full",
+    "max_payout": 5000,
+    "targets": {
+      "in_scope": [
+        {
+          "type": "website",
+          "target": "https://www.example.test",
+          "uri": "https://www.example.test",
+          "name": "Example website",
+          "ipAddress": ""
+        },
+        {
+          "type": "api",
+          "target": "https://api.example.test",
+          "uri": "https://api.example.test",
+          "name": "Example API",
+          "ipAddress": ""
+        }
+      ],
+      "out_of_scope": [
+        {
+          "type": "other",
+          "target": "Example staff",
+          "uri": "",
+          "name": "Example staff",
+          "ipAddress": ""
+        }
+      ]
+    }
+  }
+]

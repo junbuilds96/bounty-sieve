@@ -1,0 +1,44 @@
+[
+  {
+    "id": 101,
+    "handle": "example-co",
+    "name": "Example Co",
+    "url": "https://hackerone.com/example-co",
+    "website": "https://example.test",
+    "offers_bounties": true,
+    "offers_swag": false,
+    "managed_program": true,
+    "allows_bounty_splitting": false,
+    "response_efficiency_percentage": 95,
+    "submission_state": "open",
+    "targets": {
+      "in_scope": [
+        {
+          "asset_identifier": "app.example.test",
+          "asset_type": "URL",
+          "eligible_for_bounty": true,
+          "eligible_for_submission": true,
+          "instruction": "Synthetic instruction only.",
+          "max_severity": "critical"
+        },
+        {
+          "asset_identifier": "api.example.test",
+          "asset_type": "API",
+          "eligible_for_bounty": true,
+          "eligible_for_submission": true,
+          "instruction": "Synthetic instruction only.",
+          "max_severity": "high"
+        }
+      ],
+      "out_of_scope": [
+        {
+          "asset_identifier": "internal.example.test",
+          "asset_type": "URL",
+          "eligible_for_bounty": false,
+          "eligible_for_submission": false,
+          "instruction": "Synthetic instruction only."
+        }
+      ]
+    }
+  }
+]

@@ -368,12 +368,14 @@ def test_discover_help_lists_agent_intake_sources() -> None:
     result = run_cli_unchecked("discover", "--help")
 
     assert result.returncode == 0
+    assert "bounty-targets-data" in result.stdout
+    assert "--platform" in result.stdout
     assert "github-issue" in result.stdout
     assert "github-search" in result.stdout
     assert "url-list" in result.stdout
     assert "read-only public" in result.stdout
     assert "fetches" in result.stdout
-    assert "Preview github-issue, github-search, or url-list" in result.stdout
+    assert "Preview bounty-targets-data, github-issue, github-search, or url-list" in result.stdout
     assert "imports as compact JSON" in result.stdout
 
 
@@ -621,7 +623,7 @@ def test_cli_dry_run_is_only_valid_for_github_issue_or_url_list(tmp_path: Path) 
 
         assert result.returncode == 2
         assert (
-            "--dry-run can only be used with --source github-issue, --source github-search, or --source url-list"
+            "--dry-run can only be used with --source bounty-targets-data, --source github-issue, --source github-search, or --source url-list"
             in result.stderr
         )
         assert result.stdout == ""
@@ -805,6 +807,145 @@ def test_cli_imports_user_json_opportunities(tmp_path: Path) -> None:
     assert opportunities[0]["reward"]["currency"] == "USD"
     assert opportunities[0]["signals"]["requires_secret_access"] is False
     assert opportunities[0]["signals"]["acceptance_criteria"] == []
+
+
+def test_cli_imports_bounty_targets_data_with_summary_json(tmp_path: Path) -> None:
+    source = tmp_path / "bugcrowd.synthetic.json"
+    out = tmp_path / "discovered.json"
+    source.write_text(
+        json.dumps(
+            [
+                {
+                    "name": "Example Bugcrowd",
+                    "url": "https://bugcrowd.com/engagements/example-bugcrowd",
+                    "allows_disclosure": True,
+                    "managed_by_bugcrowd": True,
+                    "safe_harbor": "full",
+                    "max_payout": 5000,
+                    "targets": {
+                        "in_scope": [{"type": "website", "target": "https://www.example.test"}],
+                        "out_of_scope": [],
+                    },
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = run_cli(
+        "discover",
+        "--source",
+        "bounty-targets-data",
+        "--platform",
+        "bugcrowd",
+        "--input",
+        str(source),
+        "--out",
+        str(out),
+        "--summary-json",
+    )
+
+    opportunities = read_json(out)
+    assert result.stderr == ""
+    assert json.loads(result.stdout) == {
+        "ok": True,
+        "output": str(out),
+        "total": 1,
+        "ids": ["bugcrowd-example-bugcrowd"],
+    }
+    assert opportunities[0]["id"] == "bugcrowd-example-bugcrowd"
+    assert opportunities[0]["source"] == "bounty-targets-data"
+    assert opportunities[0]["platform"] == "bugcrowd"
+    assert opportunities[0]["reward"] == {
+        "amount": 5000,
+        "currency": "USD",
+        "type": "estimated",
+    }
+
+
+def test_cli_bounty_targets_data_dry_run_prints_normalized_json_without_writing(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "hackerone.synthetic.json"
+    out = tmp_path / "should-not-exist.json"
+    source.write_text(
+        json.dumps(
+            [
+                {
+                    "handle": "example-co",
+                    "name": "Example Co",
+                    "url": "https://hackerone.com/example-co",
+                    "offers_bounties": True,
+                    "submission_state": "open",
+                    "targets": {
+                        "in_scope": [
+                            {
+                                "asset_identifier": "app.example.test",
+                                "asset_type": "URL",
+                                "instruction": "Do not copy SECRET=synthetic.",
+                            }
+                        ],
+                        "out_of_scope": [],
+                    },
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = run_cli(
+        "discover",
+        "--source",
+        "bounty-targets-data",
+        "--platform",
+        "hackerone",
+        "--input",
+        str(source),
+        "--dry-run",
+    )
+
+    payload = json.loads(result.stdout)
+    assert result.stderr == ""
+    assert payload[0]["id"] == "hackerone-example-co"
+    assert payload[0]["source"] == "bounty-targets-data"
+    assert "SECRET" not in result.stdout
+    assert "synthetic" not in result.stdout
+    assert not out.exists()
+
+
+def test_cli_bounty_targets_data_requires_platform_and_rejects_url_input(
+    tmp_path: Path,
+) -> None:
+    out = tmp_path / "discovered.json"
+
+    missing_platform = run_cli_unchecked(
+        "discover",
+        "--source",
+        "bounty-targets-data",
+        "--input",
+        str(tmp_path / "synthetic.json"),
+        "--out",
+        str(out),
+    )
+    url_input = run_cli_unchecked(
+        "discover",
+        "--source",
+        "bounty-targets-data",
+        "--platform",
+        "hackerone",
+        "--input",
+        "https://example.test/hackerone_data.json",
+        "--out",
+        str(out),
+    )
+
+    assert missing_platform.returncode == 2
+    assert "--source bounty-targets-data requires --platform hackerone|bugcrowd" in (
+        missing_platform.stderr
+    )
+    assert url_input.returncode == 2
+    assert "--input must be a local JSON file path" in url_input.stderr
+    assert not out.exists()
 
 
 def test_cli_discover_summary_json_prints_machine_readable_stdout_after_writing(

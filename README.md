@@ -122,6 +122,13 @@ Import the file without any network access:
 python -m bounty_sieve discover --source json --input my-opportunities.json --out out/discovered.json
 ```
 
+Import a local arkadiyt/bounty-targets-data-style dump without scraping:
+
+```bash
+python -m bounty_sieve discover --source bounty-targets-data --platform hackerone --input examples/bounty-targets-data-hackerone.synthetic.json --out out/discovered.json
+python -m bounty_sieve discover --source bounty-targets-data --platform bugcrowd --input examples/bounty-targets-data-bugcrowd.synthetic.json --out out/discovered.json
+```
+
 For explicit public GitHub issue intake, use:
 
 ```bash

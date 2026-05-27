@@ -9,6 +9,10 @@ from collections import Counter
 from pathlib import Path
 
 from bounty_sieve import __version__
+from bounty_sieve.bounty_targets_importer import (
+    BountyTargetsDataImportError,
+    import_bounty_targets_data,
+)
 from bounty_sieve.doctor import format_doctor_result, run_doctor
 from bounty_sieve.fixtures import load_fixture_opportunities
 from bounty_sieve.github_importer import (
@@ -35,6 +39,11 @@ from bounty_sieve.reporting import (
 from bounty_sieve.scoring import score_opportunities
 
 
+class DiscoverHelpFormatter(argparse.HelpFormatter):
+    def __init__(self, prog: str) -> None:
+        super().__init__(prog, width=100)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="bounty-sieve",
@@ -56,17 +65,33 @@ def main(argv: list[str] | None = None) -> int:
     )
     validate_parser.add_argument("input", help="Path to a user-provided JSON opportunity file.")
 
-    discover_parser = subparsers.add_parser("discover", help="Discover opportunities.")
+    discover_parser = subparsers.add_parser(
+        "discover",
+        help="Discover opportunities.",
+        formatter_class=DiscoverHelpFormatter,
+    )
     discover_parser.add_argument(
         "--source",
-        choices=["fixture", "json", "github-issue", "github-search", "url-list"],
+        choices=[
+            "fixture",
+            "json",
+            "bounty-targets-data",
+            "github-issue",
+            "github-search",
+            "url-list",
+        ],
         required=True,
         help=(
-            "Discovery source. fixture/json are local only; github-issue, "
-            "github-search, and url-list perform explicit read-only public fetches."
+            "Discovery source. fixture/json/bounty-targets-data are local only; "
+            "github-issue, github-search, and url-list perform explicit read-only public fetches."
         ),
     )
     discover_parser.add_argument("--input", help="Path to a user-provided JSON opportunity file.")
+    discover_parser.add_argument(
+        "--platform",
+        choices=["hackerone", "bugcrowd"],
+        help="Bounty platform for --source bounty-targets-data.",
+    )
     discover_parser.add_argument("--url", help="Public GitHub issue URL for --source github-issue.")
     discover_parser.add_argument("--query", help="GitHub issue search query for --source github-search.")
     discover_parser.add_argument(
@@ -87,8 +112,8 @@ def main(argv: list[str] | None = None) -> int:
         "--dry-run",
         action="store_true",
         help=(
-            "Preview github-issue, github-search, or url-list imports as compact JSON without "
-            "requiring --out or writing files."
+            "Preview bounty-targets-data, github-issue, github-search, or url-list imports "
+            "as compact JSON without requiring --out or writing files."
         ),
     )
     discover_summary_group = discover_parser.add_mutually_exclusive_group()
@@ -349,9 +374,14 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "discover":
-        if args.dry_run and args.source not in {"github-issue", "github-search", "url-list"}:
+        if args.dry_run and args.source not in {
+            "bounty-targets-data",
+            "github-issue",
+            "github-search",
+            "url-list",
+        }:
             discover_parser.error(
-                "--dry-run can only be used with --source github-issue, --source github-search, or --source url-list"
+                "--dry-run can only be used with --source bounty-targets-data, --source github-issue, --source github-search, or --source url-list"
             )
         if args.dry_run and (args.summary or args.summary_json):
             discover_parser.error("--summary and --summary-json cannot be used with --dry-run")
@@ -359,7 +389,11 @@ def main(argv: list[str] | None = None) -> int:
             discover_parser.error("the following arguments are required: --out")
         if args.source == "fixture":
             if args.input:
-                discover_parser.error("--input can only be used with --source json or --source url-list")
+                discover_parser.error(
+                    "--input can only be used with --source json, --source bounty-targets-data, or --source url-list"
+                )
+            if args.platform:
+                discover_parser.error("--platform can only be used with --source bounty-targets-data")
             if args.url:
                 discover_parser.error("--url can only be used with --source github-issue")
             if args.query:
@@ -372,6 +406,8 @@ def main(argv: list[str] | None = None) -> int:
         elif args.source == "json":
             if not args.input:
                 discover_parser.error("--source json requires --input PATH")
+            if args.platform:
+                discover_parser.error("--platform can only be used with --source bounty-targets-data")
             if args.url:
                 discover_parser.error("--url can only be used with --source github-issue")
             if args.query:
@@ -384,9 +420,31 @@ def main(argv: list[str] | None = None) -> int:
                 opportunities = load_json_opportunities(args.input)
             except OpportunityValidationError as exc:
                 discover_parser.error(str(exc))
+        elif args.source == "bounty-targets-data":
+            if not args.input:
+                discover_parser.error("--source bounty-targets-data requires --input PATH")
+            if not args.platform:
+                discover_parser.error("--source bounty-targets-data requires --platform hackerone|bugcrowd")
+            if args.url:
+                discover_parser.error("--url can only be used with --source github-issue")
+            if args.query:
+                discover_parser.error("--query can only be used with --source github-search")
+            if args.limit is not None:
+                discover_parser.error("--limit can only be used with --source github-search")
+            if args.repo_health:
+                discover_parser.error("--repo-health can only be used with --source github-search")
+            try:
+                opportunities = import_bounty_targets_data(args.input, args.platform)
+            except BountyTargetsDataImportError as exc:
+                discover_parser.error(str(exc))
+            if args.dry_run:
+                print(json.dumps(opportunities, separators=(",", ":"), sort_keys=True))
+                return 0
         elif args.source == "github-issue":
             if args.input:
                 discover_parser.error("--input cannot be used with --source github-issue")
+            if args.platform:
+                discover_parser.error("--platform can only be used with --source bounty-targets-data")
             if not args.url:
                 discover_parser.error("--source github-issue requires --url URL")
             if args.query:
@@ -405,6 +463,8 @@ def main(argv: list[str] | None = None) -> int:
         elif args.source == "github-search":
             if args.input:
                 discover_parser.error("--input cannot be used with --source github-search")
+            if args.platform:
+                discover_parser.error("--platform can only be used with --source bounty-targets-data")
             if args.url:
                 discover_parser.error("--url cannot be used with --source github-search")
             if not args.query:
@@ -426,6 +486,8 @@ def main(argv: list[str] | None = None) -> int:
         else:
             if not args.input:
                 discover_parser.error("--source url-list requires --input PATH")
+            if args.platform:
+                discover_parser.error("--platform can only be used with --source bounty-targets-data")
             if args.url:
                 discover_parser.error("--url can only be used with --source github-issue")
             if args.query:
