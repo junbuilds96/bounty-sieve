@@ -186,6 +186,51 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
 
+    search_report_parser = subparsers.add_parser(
+        "search-report",
+        help="Search public GitHub issues, score them, and write a decision brief.",
+        description="Search public GitHub issues, score them, and write a decision brief.",
+    )
+    search_report_parser.add_argument(
+        "--query",
+        required=True,
+        help="GitHub issue search query.",
+    )
+    search_report_parser.add_argument(
+        "--limit",
+        type=int,
+        default=10,
+        help="Maximum GitHub search results to import and report; default 10, max 50.",
+    )
+    search_report_parser.add_argument(
+        "--out",
+        required=True,
+        help="Write Markdown decision brief to this path.",
+    )
+    search_report_parser.add_argument(
+        "--json-out",
+        help="Optional path for the scored JSON opportunities used for the report.",
+    )
+    search_report_parser.add_argument(
+        "--repo-health",
+        action="store_true",
+        help=(
+            "Fetch read-only public repository metadata and include compact health "
+            "signals before scoring."
+        ),
+    )
+    search_report_summary_group = search_report_parser.add_mutually_exclusive_group()
+    search_report_summary_group.add_argument(
+        "--summary",
+        action="store_true",
+        help="Print report path, recommendation counts, and summary after writing.",
+    )
+    search_report_summary_group.add_argument(
+        "--summary-json",
+        action="store_true",
+        help="Print machine-readable report summary JSON after writing.",
+    )
+
     shortlist_parser = subparsers.add_parser(
         "shortlist",
         help="Export a local read-only shortlist for review or agent handoff.",
@@ -488,6 +533,31 @@ def main(argv: list[str] | None = None) -> int:
             print(_render_search_preview_json(args.query, ranked))
         else:
             print(_render_search_preview_markdown(args.query, args.limit, ranked))
+        return 0
+
+    if args.command == "search-report":
+        if args.limit < 1 or args.limit > 50:
+            search_report_parser.error("--limit must be between 1 and 50")
+        try:
+            if args.repo_health:
+                imported = import_github_search(
+                    args.query,
+                    args.limit,
+                    include_repo_health=True,
+                )
+            else:
+                imported = import_github_search(args.query, args.limit)
+            opportunities = normalize_opportunities(imported)
+        except (GitHubImportError, OpportunityValidationError) as exc:
+            search_report_parser.error(str(exc))
+        scored = score_opportunities(opportunities)
+        write_text(args.out, render_report(scored))
+        if args.json_out:
+            write_json(args.json_out, scored)
+        if args.summary:
+            print(render_stdout_summary(scored, args.out))
+        if args.summary_json:
+            print(render_stdout_summary_json(scored, args.out))
         return 0
 
     if args.command == "shortlist":

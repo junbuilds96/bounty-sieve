@@ -10,6 +10,7 @@ This project follows a lightweight changelog format inspired by Keep a Changelog
 
 - `rank INPUT` command for an offline, read-only ranked terminal view with table and JSON output modes.
 - `shortlist INPUT --out PATH` command for exporting a local read-only Markdown or JSON review shortlist after internal scoring and ranking.
+- `search-report --query QUERY --out PATH` command for a one-command read-only public GitHub search, scoring, and Markdown decision brief workflow, with optional scored JSON output.
 
 ## [0.3.0] - 2026-05-22
 
