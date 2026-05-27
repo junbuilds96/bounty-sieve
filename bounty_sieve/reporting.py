@@ -137,7 +137,8 @@ def render_report(scored_opportunities: list[dict[str, Any]]) -> str:
             score = item["score"]
             lines.append(
                 f"- **{item['title']}** ({item['id']}): {_reward_text(score)}, "
-                f"ROI {score['roi_score']}. First safe check: confirm the public issue is still open, unclaimed, and covered by the stated acceptance criteria."
+                f"ROI {score['roi_score']}, actionability {_actionability_text(score)}. "
+                "First safe check: confirm the public issue is still open, unclaimed, and covered by the stated acceptance criteria."
             )
     else:
         lines.append("- No pursue recommendations in this run.")
@@ -148,13 +149,14 @@ def render_report(scored_opportunities: list[dict[str, Any]]) -> str:
             score = item["score"]
             lines.append(
                 f"- **watch** {item['title']} ({item['id']}): {_reward_text(score)}, "
-                f"ROI capped at {score['roi_score']}. Check the risk before investing time: {_reason_text(score)}"
+                f"ROI capped at {score['roi_score']}, actionability {_actionability_text(score)}. "
+                f"Check the risk before investing time: {_reason_text(score)}"
             )
         for item in sections.rejected_high_reward:
             score = item["score"]
             lines.append(
                 f"- **reject despite reward** {item['title']} ({item['id']}): {_reward_text(score)}. "
-                f"Do not pursue unless the unsafe requirement is removed: {_reason_text(score)}"
+                f"Actionability {_actionability_text(score)}. Do not pursue unless the unsafe requirement is removed: {_reason_text(score)}"
             )
     else:
         lines.append("- No watch or high-reward rejected items in this run.")
@@ -168,6 +170,7 @@ def render_report(scored_opportunities: list[dict[str, Any]]) -> str:
                     f"### {item['title']} ({item['id']})",
                     "",
                     f"- Recommendation: **{score['recommendation']}**; ROI {score['roi_score']}; {_reward_text(score)}.",
+                    f"- Actionability: {_actionability_text(score)}. {_actionability_reason_text(score)}",
                     f"- Public page: {_public_page_text(item)}",
                     "- Confirm the opportunity is still open and not already claimed or solved.",
                     "- Confirm payment terms, scope, acceptance criteria, and maintainer or poster activity.",
@@ -321,7 +324,7 @@ def render_html_report(scored_opportunities: list[dict[str, Any]]) -> str:
             '      <div class="table-wrap">',
             "        <table>",
             "          <thead>",
-            "            <tr><th>ID</th><th>Title</th><th>Recommendation</th><th>ROI</th><th>Reward</th><th>Reason</th></tr>",
+            "            <tr><th>ID</th><th>Title</th><th>Recommendation</th><th>Actionability</th><th>ROI</th><th>Reward</th><th>Reason</th></tr>",
             "          </thead>",
             "          <tbody>",
         ]
@@ -334,11 +337,12 @@ def render_html_report(scored_opportunities: list[dict[str, Any]]) -> str:
                 "            "
                 f"<tr><td>{_html(item['id'])}</td><td>{_html(item['title'])}</td>"
                 f"<td><span class=\"tag {_html(recommendation)}\">{_html(recommendation)}</span></td>"
+                f"<td>{_html(_actionability_text(score))}</td>"
                 f"<td>{_html(score['roi_score'])}</td><td>{_html(_reward_text(score))}</td>"
                 f"<td>{_html(_reason_text(score))}</td></tr>"
             )
     else:
-        lines.append('            <tr><td colspan="6">No scored opportunities were provided.</td></tr>')
+        lines.append('            <tr><td colspan="7">No scored opportunities were provided.</td></tr>')
     lines.extend(
         [
             "          </tbody>",
@@ -423,6 +427,7 @@ def _render_html_item(item: dict[str, Any], recommendation: str) -> list[str]:
         f"<span class=\"tag {_html(recommendation)}\">{_html(recommendation)}</span>"
         f"<span>{_html(_reward_text(score))}</span>"
         f"<span>ROI {_html(score['roi_score'])}</span>"
+        f"<span>Actionability {_html(_actionability_text(score))}</span>"
         "</div>",
         f"          <h3>{_html(item['title'])}</h3>",
         f"          <p>{_html(item.get('summary') or 'No summary provided.')}</p>",
@@ -450,6 +455,29 @@ def _reward_text(score: dict[str, Any]) -> str:
 
 def _reason_text(score: dict[str, Any]) -> str:
     return "; ".join(score["reasons"]) or "No specific reason recorded."
+
+
+def _actionability_text(score: dict[str, Any]) -> str:
+    actionability = score.get("actionability")
+    if not isinstance(actionability, dict):
+        return "not scored"
+    label = actionability.get("label") or "unknown"
+    timeliness = actionability.get("timeliness_score")
+    confidence = actionability.get("confidence_score")
+    return f"{label} (timeliness {timeliness}, confidence {confidence})"
+
+
+def _actionability_reason_text(score: dict[str, Any]) -> str:
+    actionability = score.get("actionability")
+    if not isinstance(actionability, dict):
+        return "No actionability reason recorded."
+    reasons = actionability.get("reasons")
+    if not isinstance(reasons, list):
+        return "No actionability reason recorded."
+    text_reasons = [reason for reason in reasons if isinstance(reason, str)]
+    if not text_reasons:
+        return "No actionability reason recorded."
+    return "; ".join(text_reasons)
 
 
 def _public_page_text(item: dict[str, Any]) -> str:

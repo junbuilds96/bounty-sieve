@@ -77,6 +77,82 @@ def test_scoring_penalizes_explicit_repo_health_stale_signal() -> None:
     assert "watch: repository appears stale" in score["reasons"]
 
 
+def test_actionability_uses_github_and_repo_health_metadata_deterministically() -> None:
+    opportunity = {
+        "id": "github-example-app-42",
+        "title": "Fix public docs bounty",
+        "reward": {"amount": 100, "currency": "USD", "type": "fixed"},
+        "metadata": {
+            "github": {
+                "state": "open",
+                "updated_at": "2026-05-20T00:00:00Z",
+                "observed_at": "2026-05-27T00:00:00Z",
+                "assignee_count": 0,
+                "repo_health": {
+                    "archived": False,
+                    "repo_activity": "active",
+                    "reason": "repository pushed within 180 days",
+                },
+            }
+        },
+        "signals": {
+            "clarity": "high",
+            "repo_activity": "active",
+            "competition": "low",
+            "complexity": "low",
+            "scope": "tiny",
+            "tech": ["markdown"],
+            "acceptance_criteria": ["Update README"],
+        },
+    }
+
+    first = score_opportunity(opportunity)["score"]["actionability"]
+    second = score_opportunity(opportunity)["score"]["actionability"]
+
+    assert first == second
+    assert first["label"] == "high"
+    assert first["timeliness_score"] == 95
+    assert first["confidence_score"] == 100
+    assert "why now: GitHub issue is open" in first["reasons"]
+    assert "why now: issue updated within 14 days" in first["reasons"]
+    assert "why now: repository pushed within 180 days" in first["reasons"]
+    assert "confidence: acceptance criteria are present" in first["reasons"]
+
+
+def test_actionability_marks_closed_or_archived_items_low() -> None:
+    scored = score_opportunity(
+        {
+            "id": "github-example-app-99",
+            "title": "Closed archived bounty",
+            "reward": {"amount": 500, "currency": "USD", "type": "fixed"},
+            "metadata": {
+                "github": {
+                    "state": "closed",
+                    "closed_at": "2026-05-01T00:00:00Z",
+                    "repo_health": {"archived": True, "repo_activity": "low"},
+                }
+            },
+            "signals": {
+                "clarity": "high",
+                "repo_activity": "low",
+                "repo_archived": True,
+                "competition": "low",
+                "complexity": "low",
+                "scope": "tiny",
+                "tech": ["python"],
+            },
+        }
+    )
+
+    actionability = scored["score"]["actionability"]
+    assert scored["score"]["recommendation"] == "watch"
+    assert actionability["label"] == "low"
+    assert actionability["timeliness_score"] == 0
+    assert actionability["confidence_score"] <= 35
+    assert "why now: GitHub issue is closed" in actionability["reasons"]
+    assert "why now: repository is archived" in actionability["reasons"]
+
+
 def test_report_handles_empty_scored_input() -> None:
     markdown = render_report([])
 

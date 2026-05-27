@@ -1198,6 +1198,7 @@ def _rank_item_payload(item: dict) -> dict:
         "title": item.get("title"),
         "url": item.get("url"),
         "recommendation": score.get("recommendation"),
+        "actionability": _actionability_payload(score),
         "roi_score": score.get("roi_score"),
         "reward_estimate_usd": score.get("reward_estimate_usd"),
         "reasons": score.get("reasons", []),
@@ -1224,11 +1225,16 @@ def _render_next_human(selected: dict | None) -> str:
         f"Next opportunity: {selected.get('title', '')}",
         f"ID: {selected.get('id', '')}",
         f"Recommendation: {score.get('recommendation', '')}",
+        f"Actionability: {_format_actionability(score)}",
         f"ROI: {score.get('roi_score', 0)}",
         f"Reward: {_format_rank_reward(score.get('reward_estimate_usd', 0))}",
     ]
     if selected.get("url"):
         lines.append(f"URL: {selected['url']}")
+    actionability_reasons = _actionability_reasons(score)
+    if actionability_reasons:
+        lines.append("Actionability reasons:")
+        lines.extend(f"- {reason}" for reason in actionability_reasons)
     reasons = score.get("reasons", [])
     if reasons:
         lines.append("Reasons:")
@@ -1270,6 +1276,7 @@ def _explain_item_payload(item: dict) -> dict:
         "title": item.get("title"),
         "url": item.get("url"),
         "recommendation": score.get("recommendation"),
+        "actionability": _actionability_payload(score),
         "roi_score": score.get("roi_score"),
         "reward_estimate_usd": score.get("reward_estimate_usd"),
         "score_components": _score_component_payload(score),
@@ -1298,11 +1305,17 @@ def _render_explain_human(selected: dict) -> str:
         f"Decision card: {selected.get('title', '')}",
         f"ID: {selected.get('id', '')}",
         f"Recommendation: {score.get('recommendation', '')}",
+        f"Actionability: {_format_actionability(score)}",
         f"ROI: {score.get('roi_score', 0)}",
         f"Reward: {_format_rank_reward(score.get('reward_estimate_usd', 0))}",
     ]
     if selected.get("url"):
         lines.append(f"Public URL: {selected['url']}")
+
+    actionability_reasons = _actionability_reasons(score)
+    if actionability_reasons:
+        lines.append("Actionability reasons:")
+        lines.extend(f"- {reason}" for reason in actionability_reasons)
 
     lines.append("Score components:")
     components = _score_component_payload(score)
@@ -1363,7 +1376,7 @@ def _explain_not_found_message(opportunity_id: str, available_ids: list[str]) ->
 
 
 def _render_rank_table(shown: list[dict]) -> str:
-    headers = ["Recommendation", "ROI", "Reward", "Title", "Public URL"]
+    headers = ["Recommendation", "Actionability", "ROI", "Reward", "Title", "Public URL"]
     rows = [_rank_table_row(item) for item in shown]
     widths = [
         max([len(headers[column]), *[len(row[column]) for row in rows]])
@@ -1383,6 +1396,7 @@ def _rank_table_row(item: dict) -> list[str]:
     reward = score.get("reward_estimate_usd", 0)
     return [
         str(score.get("recommendation", "")),
+        _format_actionability_label(score),
         str(roi_score),
         _format_rank_reward(reward),
         _truncate_text(str(item.get("title", "")), 48),
@@ -1400,6 +1414,45 @@ def _format_rank_reward(value: object) -> str:
     if isinstance(value, int | float):
         return f"${int(value):,}"
     return "$0"
+
+
+def _actionability_payload(score: dict) -> dict | None:
+    actionability = score.get("actionability")
+    if not isinstance(actionability, dict):
+        return None
+    return {
+        "label": actionability.get("label"),
+        "timeliness_score": actionability.get("timeliness_score"),
+        "confidence_score": actionability.get("confidence_score"),
+        "reasons": actionability.get("reasons", []),
+    }
+
+
+def _format_actionability(score: dict) -> str:
+    actionability = _actionability_payload(score)
+    if actionability is None:
+        return "not scored"
+    label = actionability.get("label") or "unknown"
+    timeliness = actionability.get("timeliness_score")
+    confidence = actionability.get("confidence_score")
+    return f"{label} (timeliness {timeliness}, confidence {confidence})"
+
+
+def _format_actionability_label(score: dict) -> str:
+    actionability = _actionability_payload(score)
+    if actionability is None:
+        return ""
+    return str(actionability.get("label") or "")
+
+
+def _actionability_reasons(score: dict) -> list[str]:
+    actionability = _actionability_payload(score)
+    if actionability is None:
+        return []
+    reasons = actionability.get("reasons")
+    if not isinstance(reasons, list):
+        return []
+    return [reason for reason in reasons if isinstance(reason, str)]
 
 
 def _truncate_text(text: str, max_width: int) -> str:

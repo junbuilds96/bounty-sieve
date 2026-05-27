@@ -62,6 +62,20 @@ def read_json(path: Path):
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def assert_actionability_shape(actionability: dict) -> None:
+    assert set(actionability) == {
+        "label",
+        "timeliness_score",
+        "confidence_score",
+        "reasons",
+    }
+    assert isinstance(actionability["label"], str)
+    assert isinstance(actionability["timeliness_score"], int)
+    assert isinstance(actionability["confidence_score"], int)
+    assert isinstance(actionability["reasons"], list)
+    assert all(isinstance(reason, str) for reason in actionability["reasons"])
+
+
 def stdin_opportunities_json(*ids: str) -> str:
     return json.dumps(
         {
@@ -1615,6 +1629,7 @@ def test_rank_json_output_shape(tmp_path: Path) -> None:
         "roi_score",
         "reward_estimate_usd",
         "reasons",
+        "actionability",
     }
     assert item["id"] == "pursue-docs"
     assert item["title"] == "Fix docs quickstart"
@@ -1623,6 +1638,7 @@ def test_rank_json_output_shape(tmp_path: Path) -> None:
     assert isinstance(item["roi_score"], int)
     assert item["reward_estimate_usd"] == 100
     assert isinstance(item["reasons"], list)
+    assert_actionability_shape(item["actionability"])
 
 
 def test_rank_rejects_non_positive_limit(tmp_path: Path) -> None:
@@ -1785,10 +1801,12 @@ def test_search_preview_json_is_compact_ranked_and_writes_no_files(
         "roi_score",
         "reward_estimate_usd",
         "reasons",
+        "actionability",
     }
     assert item["repo"] == "example/app"
     assert item["recommendation"] == "pursue"
     assert item["reward_estimate_usd"] == 100
+    assert_actionability_shape(item["actionability"])
     assert "writes no files" in payload["safety_boundary"]
     assert "\n" not in captured.out.rstrip("\n")
     assert list(tmp_path.iterdir()) == []
@@ -2387,11 +2405,13 @@ def test_shortlist_json_output_shape(tmp_path: Path) -> None:
         "roi_score",
         "reward_estimate_usd",
         "reasons",
+        "actionability",
     }
     assert payload["items"][0]["title"] == "Fix docs quickstart"
     assert payload["items"][0]["recommendation"] == "pursue"
     assert payload["items"][0]["reward_estimate_usd"] == 100
     assert isinstance(payload["items"][0]["roi_score"], int)
+    assert_actionability_shape(payload["items"][0]["actionability"])
     assert not (tmp_path / "-").exists()
     assert "\n" not in result.stdout.rstrip("\n")
 
@@ -2566,12 +2586,14 @@ def test_next_json_output_shape(tmp_path: Path) -> None:
         "roi_score",
         "reward_estimate_usd",
         "reasons",
+        "actionability",
     }
     assert payload["item"]["id"] == "pursue-docs"
     assert payload["item"]["title"] == "Fix docs quickstart"
     assert payload["item"]["recommendation"] == "pursue"
     assert payload["item"]["reward_estimate_usd"] == 100
     assert isinstance(payload["item"]["reasons"], list)
+    assert_actionability_shape(payload["item"]["actionability"])
 
 
 def test_next_empty_input_prints_no_op_message(tmp_path: Path) -> None:
@@ -2692,6 +2714,7 @@ def test_explain_json_output_shape(tmp_path: Path) -> None:
         "reasons",
         "manual_verification_checklist",
         "safety_boundary",
+        "actionability",
     }
     assert item["id"] == "pursue-docs"
     assert item["title"] == "Fix docs quickstart"
@@ -2709,6 +2732,7 @@ def test_explain_json_output_shape(tmp_path: Path) -> None:
         "scope_risk": 15,
     }
     assert isinstance(item["reasons"], list)
+    assert_actionability_shape(item["actionability"])
     assert len(item["manual_verification_checklist"]) == 3
     assert "performs no network access, writes no files" in item["safety_boundary"]
 
@@ -2865,8 +2889,10 @@ def test_scoring_rules_are_deterministic_and_transparent(tmp_path: Path) -> None
         "roi_score",
         "recommendation",
         "reasons",
+        "actionability",
     }
     assert set(by_id["safe-docs-quickstart"]) == required_fields
+    assert_actionability_shape(by_id["safe-docs-quickstart"]["actionability"])
 
 
 def test_report_rendering_includes_required_sections(tmp_path: Path) -> None:
