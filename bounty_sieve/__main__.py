@@ -74,6 +74,14 @@ def main(argv: list[str] | None = None) -> int:
         type=int,
         help="Maximum GitHub search results for --source github-search; default 10, max 50.",
     )
+    discover_parser.add_argument(
+        "--repo-health",
+        action="store_true",
+        help=(
+            "For --source github-search, fetch read-only public repository metadata "
+            "and include compact health signals."
+        ),
+    )
     discover_parser.add_argument("--out")
     discover_parser.add_argument(
         "--dry-run",
@@ -168,6 +176,14 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         dest="json_output",
         help="Print compact machine-readable JSON and no markdown.",
+    )
+    search_preview_parser.add_argument(
+        "--repo-health",
+        action="store_true",
+        help=(
+            "Fetch read-only public repository metadata and include compact health "
+            "signals in the preview."
+        ),
     )
 
     shortlist_parser = subparsers.add_parser(
@@ -305,6 +321,8 @@ def main(argv: list[str] | None = None) -> int:
                 discover_parser.error("--query can only be used with --source github-search")
             if args.limit is not None:
                 discover_parser.error("--limit can only be used with --source github-search")
+            if args.repo_health:
+                discover_parser.error("--repo-health can only be used with --source github-search")
             opportunities = load_fixture_opportunities()
         elif args.source == "json":
             if not args.input:
@@ -315,6 +333,8 @@ def main(argv: list[str] | None = None) -> int:
                 discover_parser.error("--query can only be used with --source github-search")
             if args.limit is not None:
                 discover_parser.error("--limit can only be used with --source github-search")
+            if args.repo_health:
+                discover_parser.error("--repo-health can only be used with --source github-search")
             try:
                 opportunities = load_json_opportunities(args.input)
             except OpportunityValidationError as exc:
@@ -328,6 +348,8 @@ def main(argv: list[str] | None = None) -> int:
                 discover_parser.error("--query can only be used with --source github-search")
             if args.limit is not None:
                 discover_parser.error("--limit can only be used with --source github-search")
+            if args.repo_health:
+                discover_parser.error("--repo-health can only be used with --source github-search")
             try:
                 opportunities = normalize_opportunities([import_github_issue_url(args.url)])
             except (GitHubImportError, OpportunityValidationError) as exc:
@@ -346,7 +368,11 @@ def main(argv: list[str] | None = None) -> int:
             if limit < 1 or limit > 50:
                 discover_parser.error("--limit must be between 1 and 50")
             try:
-                opportunities = normalize_opportunities(import_github_search(args.query, limit))
+                if args.repo_health:
+                    imported = import_github_search(args.query, limit, include_repo_health=True)
+                else:
+                    imported = import_github_search(args.query, limit)
+                opportunities = normalize_opportunities(imported)
             except (GitHubImportError, OpportunityValidationError) as exc:
                 discover_parser.error(str(exc))
             if args.dry_run:
@@ -361,6 +387,8 @@ def main(argv: list[str] | None = None) -> int:
                 discover_parser.error("--query can only be used with --source github-search")
             if args.limit is not None:
                 discover_parser.error("--limit can only be used with --source github-search")
+            if args.repo_health:
+                discover_parser.error("--repo-health can only be used with --source github-search")
             try:
                 opportunities, warnings = import_url_list(args.input)
             except OSError as exc:
@@ -444,9 +472,15 @@ def main(argv: list[str] | None = None) -> int:
         if args.limit < 1 or args.limit > 50:
             search_preview_parser.error("--limit must be between 1 and 50")
         try:
-            opportunities = normalize_opportunities(
-                import_github_search(args.query, args.limit)
-            )
+            if args.repo_health:
+                imported = import_github_search(
+                    args.query,
+                    args.limit,
+                    include_repo_health=True,
+                )
+            else:
+                imported = import_github_search(args.query, args.limit)
+            opportunities = normalize_opportunities(imported)
         except (GitHubImportError, OpportunityValidationError) as exc:
             search_preview_parser.error(str(exc))
         ranked = _rank_scored_opportunities(score_opportunities(opportunities))
@@ -937,18 +971,20 @@ def _render_search_preview_markdown(query: str, limit: int, ranked: list[dict]) 
     if ranked:
         for index, item in enumerate(ranked, start=1):
             score = item.get("score", {})
-            lines.extend(
-                [
-                    f"### {index}. {item.get('title', '')}",
-                    "",
-                    f"- ID: {item.get('id', '')}",
-                    f"- Recommendation: {score.get('recommendation', '')}",
-                    f"- ROI: {score.get('roi_score', 0)}",
-                    f"- Repository: {item.get('repo') or 'not provided'}",
-                    f"- URL: {item.get('url') or 'not provided'}",
-                    "",
-                ]
-            )
+            item_lines = [
+                f"### {index}. {item.get('title', '')}",
+                "",
+                f"- ID: {item.get('id', '')}",
+                f"- Recommendation: {score.get('recommendation', '')}",
+                f"- ROI: {score.get('roi_score', 0)}",
+                f"- Repository: {item.get('repo') or 'not provided'}",
+                f"- URL: {item.get('url') or 'not provided'}",
+            ]
+            repo_health = _repo_health_payload(item)
+            if repo_health:
+                item_lines.append(f"- Repo health: {_format_repo_health(repo_health)}")
+            item_lines.append("")
+            lines.extend(item_lines)
     else:
         lines.extend(["No public GitHub issues matched the query after import filtering.", ""])
 
@@ -969,7 +1005,58 @@ def _render_search_preview_markdown(query: str, limit: int, ranked: list[dict]) 
 def _search_preview_item_payload(item: dict) -> dict:
     payload = _rank_item_payload(item)
     payload["repo"] = item.get("repo")
+    repo_health = _repo_health_payload(item)
+    if repo_health:
+        payload["repo_health"] = repo_health
     return payload
+
+
+def _repo_health_payload(item: dict) -> dict | None:
+    metadata = item.get("metadata")
+    if not isinstance(metadata, dict):
+        return None
+    github_metadata = metadata.get("github")
+    if not isinstance(github_metadata, dict):
+        return None
+    repo_health = github_metadata.get("repo_health")
+    if not isinstance(repo_health, dict):
+        return None
+    keys = [
+        "stars",
+        "open_issues_count",
+        "archived",
+        "pushed_at",
+        "updated_at",
+        "repo_activity",
+        "reason",
+    ]
+    return {key: repo_health.get(key) for key in keys if key in repo_health}
+
+
+def _format_repo_health(repo_health: dict) -> str:
+    parts = [
+        f"activity={repo_health.get('repo_activity', 'unknown')}",
+        f"archived={_format_bool(repo_health.get('archived'))}",
+    ]
+    if repo_health.get("stars") is not None:
+        parts.append(f"stars={repo_health['stars']}")
+    if repo_health.get("open_issues_count") is not None:
+        parts.append(f"open_issues={repo_health['open_issues_count']}")
+    if repo_health.get("pushed_at"):
+        parts.append(f"pushed_at={repo_health['pushed_at']}")
+    elif repo_health.get("updated_at"):
+        parts.append(f"updated_at={repo_health['updated_at']}")
+    if repo_health.get("reason"):
+        parts.append(f"reason={repo_health['reason']}")
+    return ", ".join(parts)
+
+
+def _format_bool(value: object) -> str:
+    if value is True:
+        return "true"
+    if value is False:
+        return "false"
+    return "unknown"
 
 
 def _rank_item_payload(item: dict) -> dict:

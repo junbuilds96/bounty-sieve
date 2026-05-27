@@ -682,6 +682,80 @@ def test_cli_github_search_argument_errors_do_not_fetch_network(tmp_path: Path) 
         assert not out.exists()
 
 
+def test_cli_discover_github_search_repo_health_dry_run_passes_flag(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    calls = []
+
+    def fake_import(
+        query: str,
+        limit: int,
+        include_repo_health: bool = False,
+    ) -> list[dict]:
+        calls.append((query, limit, include_repo_health))
+        return [
+            {
+                "id": "github-example-app-1",
+                "title": "Fix docs quickstart",
+                "summary": "Tiny docs task.",
+                "url": "https://github.com/example/app/issues/1",
+                "platform": "github",
+                "repo": "example/app",
+                "source": "github-issue",
+                "signals": {
+                    "clarity": "high",
+                    "repo_activity": "active",
+                    "repo_activity_reason": "repository pushed within 180 days",
+                    "repo_health_stale": False,
+                    "repo_archived": False,
+                    "competition": "low",
+                    "complexity": "low",
+                    "scope": "tiny",
+                    "tech": ["markdown"],
+                },
+                "metadata": {
+                    "github": {
+                        "repo_health": {
+                            "stars": 12,
+                            "open_issues_count": 4,
+                            "archived": False,
+                            "pushed_at": "2026-05-20T00:00:00Z",
+                            "updated_at": "2026-05-21T00:00:00Z",
+                            "repo_activity": "active",
+                            "reason": "repository pushed within 180 days",
+                        }
+                    }
+                },
+            }
+        ]
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("bounty_sieve.__main__.import_github_search", fake_import)
+
+    result = cli_main(
+        [
+            "discover",
+            "--source",
+            "github-search",
+            "--query",
+            "bounty docs",
+            "--repo-health",
+            "--dry-run",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    assert result == 0
+    assert calls == [("bounty docs", 10, True)]
+    assert payload[0]["metadata"]["github"]["repo_health"]["stars"] == 12
+    assert payload[0]["signals"]["repo_activity"] == "active"
+    assert payload[0]["signals"]["repo_activity_reason"] == "repository pushed within 180 days"
+    assert payload[0]["signals"]["repo_health_stale"] is False
+    assert payload[0]["signals"]["repo_archived"] is False
+    assert list(tmp_path.iterdir()) == []
+
+
 def test_cli_discover_still_requires_out_without_dry_run(tmp_path: Path) -> None:
     result = run_cli_unchecked("discover", "--source", "fixture", cwd=tmp_path)
 
@@ -1425,6 +1499,7 @@ def test_search_preview_help_documents_read_only_github_preview() -> None:
     assert "Preview ranked public GitHub issues from a read-only search." in result.stdout
     assert "--query" in result.stdout
     assert "--limit" in result.stdout
+    assert "--repo-health" in result.stdout
     assert "--json" in result.stdout
 
 
@@ -1572,6 +1647,140 @@ def test_search_preview_json_is_compact_ranked_and_writes_no_files(
     assert item["reward_estimate_usd"] == 100
     assert "writes no files" in payload["safety_boundary"]
     assert "\n" not in captured.out.rstrip("\n")
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_search_preview_repo_health_json_exposes_health_and_passes_flag(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    calls = []
+
+    def fake_import(
+        query: str,
+        limit: int,
+        include_repo_health: bool = False,
+    ) -> list[dict]:
+        calls.append((query, limit, include_repo_health))
+        return [
+            {
+                "id": "github-example-app-1",
+                "title": "Fix docs quickstart",
+                "summary": "Tiny docs task.",
+                "url": "https://github.com/example/app/issues/1",
+                "platform": "github",
+                "repo": "example/app",
+                "source": "github-issue",
+                "reward": {"amount": 100, "currency": "USD", "type": "fixed"},
+                "signals": {
+                    "clarity": "high",
+                    "repo_activity": "low",
+                    "repo_health_stale": True,
+                    "repo_archived": True,
+                    "competition": "low",
+                    "complexity": "low",
+                    "scope": "tiny",
+                    "tech": ["markdown"],
+                },
+                "metadata": {
+                    "github": {
+                        "repo_health": {
+                            "stars": 12,
+                            "open_issues_count": 4,
+                            "archived": True,
+                            "pushed_at": "2024-01-01T00:00:00Z",
+                            "updated_at": "2024-01-02T00:00:00Z",
+                            "repo_activity": "low",
+                            "reason": "repository is archived",
+                        }
+                    }
+                },
+            }
+        ]
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("bounty_sieve.__main__.import_github_search", fake_import)
+
+    result = cli_main(
+        [
+            "search-preview",
+            "--query",
+            "bounty docs",
+            "--repo-health",
+            "--json",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    item = payload["ranked"][0]
+    assert result == 0
+    assert calls == [("bounty docs", 10, True)]
+    assert item["recommendation"] == "watch"
+    assert "watch: repository is archived" in item["reasons"]
+    assert item["repo_health"] == {
+        "stars": 12,
+        "open_issues_count": 4,
+        "archived": True,
+        "pushed_at": "2024-01-01T00:00:00Z",
+        "updated_at": "2024-01-02T00:00:00Z",
+        "repo_activity": "low",
+        "reason": "repository is archived",
+    }
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_search_preview_repo_health_markdown_exposes_health(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    def fake_import(
+        query: str,
+        limit: int,
+        include_repo_health: bool = False,
+    ) -> list[dict]:
+        assert include_repo_health is True
+        return [
+            {
+                "id": "github-example-app-1",
+                "title": "Fix docs quickstart",
+                "summary": "Tiny docs task.",
+                "url": "https://github.com/example/app/issues/1",
+                "platform": "github",
+                "repo": "example/app",
+                "source": "github-issue",
+                "signals": {
+                    "clarity": "high",
+                    "repo_activity": "active",
+                    "competition": "low",
+                    "complexity": "low",
+                    "scope": "tiny",
+                    "tech": ["markdown"],
+                },
+                "metadata": {
+                    "github": {
+                        "repo_health": {
+                            "stars": 12,
+                            "open_issues_count": 4,
+                            "archived": False,
+                            "pushed_at": "2026-05-20T00:00:00Z",
+                            "updated_at": "2026-05-21T00:00:00Z",
+                            "repo_activity": "active",
+                            "reason": "repository pushed within 180 days",
+                        }
+                    }
+                },
+            }
+        ]
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("bounty_sieve.__main__.import_github_search", fake_import)
+
+    result = cli_main(["search-preview", "--query", "bounty docs", "--repo-health"])
+
+    captured = capsys.readouterr()
+    assert result == 0
+    assert "- Repo health: activity=active, archived=false, stars=12" in captured.out
+    assert "open_issues=4" in captured.out
+    assert "reason=repository pushed within 180 days" in captured.out
     assert list(tmp_path.iterdir()) == []
 
 

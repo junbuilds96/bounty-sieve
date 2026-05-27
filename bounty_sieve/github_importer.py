@@ -42,7 +42,11 @@ def import_github_issue_url(url: str) -> dict[str, Any]:
     return github_issue_to_opportunity(url, issue_ref, issue, comments)
 
 
-def import_github_search(query: str, limit: int = 10) -> list[dict[str, Any]]:
+def import_github_search(
+    query: str,
+    limit: int = 10,
+    include_repo_health: bool = False,
+) -> list[dict[str, Any]]:
     """Fetch public GitHub issue search results as normalized opportunities."""
     normalized_query = query.strip()
     if not normalized_query:
@@ -56,20 +60,22 @@ def import_github_search(query: str, limit: int = 10) -> list[dict[str, Any]]:
         raise GitHubImportError("GitHub search response did not include an items list")
 
     opportunities: list[dict[str, Any]] = []
+    repo_health_cache: dict[str, dict[str, Any]] = {}
     for item in items:
         if not isinstance(item, dict) or "pull_request" in item:
             continue
         issue_ref = _issue_ref_from_search_item(item)
         safe_item = {**item, "html_url": _github_issue_html_url(issue_ref)}
         comments = _fetch_comments(item, issue_ref)
-        opportunities.append(
-            github_issue_to_opportunity(
-                safe_item["html_url"],
-                issue_ref,
-                safe_item,
-                comments,
-            )
+        opportunity = github_issue_to_opportunity(
+            safe_item["html_url"],
+            issue_ref,
+            safe_item,
+            comments,
         )
+        if include_repo_health:
+            _enrich_opportunity_with_repo_health(opportunity, issue_ref, repo_health_cache)
+        opportunities.append(opportunity)
     return opportunities
 
 
@@ -203,6 +209,124 @@ def _comments_api_url(issue_ref: GitHubIssueRef) -> str:
 
 def _github_issue_html_url(issue_ref: GitHubIssueRef) -> str:
     return f"https://github.com/{issue_ref.full_repo}/issues/{issue_ref.number}"
+
+
+def _enrich_opportunity_with_repo_health(
+    opportunity: dict[str, Any],
+    issue_ref: GitHubIssueRef,
+    repo_health_cache: dict[str, dict[str, Any]],
+) -> None:
+    health = _repo_health(issue_ref, repo_health_cache)
+    metadata = opportunity.setdefault("metadata", {})
+    github_metadata = metadata.setdefault("github", {})
+    github_metadata["repo_health"] = dict(health)
+
+    signals = opportunity.setdefault("signals", {})
+    signals["repo_activity"] = health["repo_activity"]
+    signals["repo_activity_reason"] = health["reason"]
+    signals["repo_health_stale"] = health["repo_activity"] == "low"
+    signals["repo_archived"] = health.get("archived") is True
+
+
+def _repo_health(
+    issue_ref: GitHubIssueRef,
+    repo_health_cache: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    full_repo = issue_ref.full_repo
+    if full_repo not in repo_health_cache:
+        try:
+            payload = _fetch_json(_api_url(f"/repos/{full_repo}"))
+        except GitHubImportError as exc:
+            repo_health_cache[full_repo] = _unknown_repo_health(
+                f"repo metadata unavailable: {exc}"
+            )
+        else:
+            repo_health_cache[full_repo] = _repo_health_from_payload(payload)
+    return repo_health_cache[full_repo]
+
+
+def _repo_health_from_payload(payload: Any) -> dict[str, Any]:
+    if not isinstance(payload, dict):
+        return _unknown_repo_health("repo metadata response was not an object")
+
+    archived_value = payload.get("archived")
+    archived = archived_value if isinstance(archived_value, bool) else None
+    pushed_at = _optional_string_value(payload.get("pushed_at"))
+    updated_at = _optional_string_value(payload.get("updated_at"))
+    repo_activity, reason = _repo_activity_from_repo_metadata(archived, pushed_at, updated_at)
+
+    return {
+        "stars": _safe_optional_int(payload.get("stargazers_count")),
+        "open_issues_count": _safe_optional_int(payload.get("open_issues_count")),
+        "archived": archived,
+        "pushed_at": pushed_at,
+        "updated_at": updated_at,
+        "repo_activity": repo_activity,
+        "reason": reason,
+    }
+
+
+def _unknown_repo_health(reason: str) -> dict[str, Any]:
+    return {
+        "stars": None,
+        "open_issues_count": None,
+        "archived": None,
+        "pushed_at": None,
+        "updated_at": None,
+        "repo_activity": "unknown",
+        "reason": reason,
+    }
+
+
+def _repo_activity_from_repo_metadata(
+    archived: bool | None,
+    pushed_at: str | None,
+    updated_at: str | None,
+) -> tuple[str, str]:
+    if archived is True:
+        return "low", "repository is archived"
+
+    pushed = _parse_github_timestamp(pushed_at)
+    if pushed is not None:
+        age_days = (datetime.now(UTC) - pushed).days
+        if age_days <= 180:
+            return "active", "repository pushed within 180 days"
+        return "low", "repository has no push activity within 180 days"
+
+    updated = _parse_github_timestamp(updated_at)
+    if updated is not None:
+        age_days = (datetime.now(UTC) - updated).days
+        if age_days <= 180:
+            return "active", "repository updated within 180 days"
+        return "low", "repository has no update activity within 180 days"
+
+    return "unknown", "repository activity timestamps unavailable"
+
+
+def _parse_github_timestamp(value: str | None) -> datetime | None:
+    if value is None:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
+
+
+def _optional_string_value(value: Any) -> str | None:
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return None
+
+
+def _safe_optional_int(value: Any) -> int | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    return None
 
 
 def _issue_ref_from_search_item(item: dict[str, Any]) -> GitHubIssueRef:

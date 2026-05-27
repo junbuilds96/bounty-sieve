@@ -129,8 +129,11 @@ To preview ranked public GitHub search results in the terminal without writing f
 
 ```bash
 python -m bounty_sieve search-preview --query 'label:"good first issue" bounty' --limit 10
+python -m bounty_sieve search-preview --query 'label:"good first issue" bounty' --repo-health
 python -m bounty_sieve search-preview --query 'label:"good first issue" bounty' --json
 ```
+
+Add `--repo-health` to `search-preview` or `discover --source github-search` to fetch compact read-only public repository metadata such as stars, open issues, archived status, and recent push/update activity. This is optional and uses `GITHUB_TOKEN` only for rate limiting when already set.
 
 For a newline-delimited URL file, use:
 

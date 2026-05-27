@@ -132,6 +132,10 @@ def _reasons(
         reasons.append("reject: payment or eligibility is gated by repository starring")
     if signals.get("duplicate_pr_swarm"):
         reasons.append("watch: high duplicate PR competition risk")
+    if signals.get("repo_archived"):
+        reasons.append("watch: repository is archived")
+    elif signals.get("repo_health_stale"):
+        reasons.append("watch: repository appears stale")
     if signals.get("complexity") == "high":
         reasons.append("watch: high implementation complexity")
     if signals.get("clarity") == "low":
@@ -162,6 +166,8 @@ def _recommendation(
     if (
         signals.get("duplicate_pr_swarm")
         or issue_clarity < 50
+        or signals.get("repo_archived")
+        or signals.get("repo_health_stale")
         or competition_risk >= 80
         or complexity_estimate >= 80
         or scope_risk >= 80

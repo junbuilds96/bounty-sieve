@@ -196,6 +196,83 @@ def test_github_search_builds_search_url_filters_pull_requests_and_fetches_issue
     assert "pull/99" not in json.dumps(opportunities)
 
 
+def test_github_search_repo_health_fetches_repo_metadata_once_per_repo(
+    monkeypatch,
+) -> None:
+    calls = []
+    search_payload = {
+        "items": [
+            {
+                "title": "Fix docs bounty ($50)",
+                "body": "Acceptance criteria\n- Update README",
+                "html_url": "https://github.com/example/widgets/issues/42",
+                "repository_url": "https://api.github.com/repos/example/widgets",
+                "labels": [{"name": "documentation"}],
+                "state": "open",
+                "number": 42,
+                "comments": 0,
+                "created_at": "2026-05-01T00:00:00Z",
+                "updated_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+                "assignees": [],
+            },
+            {
+                "title": "Fix another docs issue",
+                "body": "Small public docs issue.",
+                "html_url": "https://github.com/example/widgets/issues/43",
+                "repository_url": "https://api.github.com/repos/example/widgets",
+                "labels": [{"name": "documentation"}],
+                "state": "open",
+                "number": 43,
+                "comments": 0,
+                "created_at": "2026-05-01T00:00:00Z",
+                "updated_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+                "assignees": [],
+            },
+        ]
+    }
+    repo_payload = {
+        "stargazers_count": 123,
+        "open_issues_count": 7,
+        "archived": True,
+        "pushed_at": "2024-01-01T00:00:00Z",
+        "updated_at": "2024-01-02T00:00:00Z",
+    }
+
+    def fake_urlopen(request, timeout):
+        calls.append((request, timeout))
+        if request.full_url.startswith("https://api.github.com/search/issues?"):
+            return FakeResponse(search_payload)
+        if request.full_url == "https://api.github.com/repos/example/widgets":
+            return FakeResponse(repo_payload)
+        raise AssertionError(f"unexpected URL fetched: {request.full_url}")
+
+    monkeypatch.setenv("GITHUB_TOKEN", "secret-test-token")
+    monkeypatch.setattr("bounty_sieve.github_importer.urlopen", fake_urlopen)
+
+    opportunities = import_github_search("bounty docs", 10, include_repo_health=True)
+
+    assert [call[0].full_url for call in calls[1:]] == [
+        "https://api.github.com/repos/example/widgets"
+    ]
+    assert calls[1][0].headers["Authorization"] == "Bearer secret-test-token"
+    health = opportunities[0]["metadata"]["github"]["repo_health"]
+    assert health == {
+        "stars": 123,
+        "open_issues_count": 7,
+        "archived": True,
+        "pushed_at": "2024-01-01T00:00:00Z",
+        "updated_at": "2024-01-02T00:00:00Z",
+        "repo_activity": "low",
+        "reason": "repository is archived",
+    }
+    assert opportunities[0]["signals"]["repo_activity"] == "low"
+    assert opportunities[0]["signals"]["repo_activity_reason"] == "repository is archived"
+    assert opportunities[0]["signals"]["repo_health_stale"] is True
+    assert opportunities[0]["signals"]["repo_archived"] is True
+    assert opportunities[1]["metadata"]["github"]["repo_health"] == health
+    assert "secret-test-token" not in json.dumps(opportunities)
+
+
 def test_github_search_canonicalizes_output_url_from_repository_ref(monkeypatch) -> None:
     search_payload = {
         "items": [

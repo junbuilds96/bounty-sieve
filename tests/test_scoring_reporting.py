@@ -52,6 +52,31 @@ def test_scoring_rejects_secret_access_even_with_other_positive_signals() -> Non
     assert "reject: requires secret, credential, wallet, or private access" in score["reasons"]
 
 
+def test_scoring_penalizes_explicit_repo_health_stale_signal() -> None:
+    scored = score_opportunity(
+        {
+            "id": "edge-stale-repo",
+            "title": "Fix docs in stale repo",
+            "reward": {"amount": 100, "currency": "USD", "type": "fixed"},
+            "signals": {
+                "clarity": "high",
+                "repo_activity": "low",
+                "repo_health_stale": True,
+                "competition": "low",
+                "complexity": "low",
+                "scope": "tiny",
+                "tech": ["markdown"],
+            },
+        }
+    )
+
+    score = scored["score"]
+    assert score["repo_activity"] == 40
+    assert score["recommendation"] == "watch"
+    assert score["roi_score"] <= 59
+    assert "watch: repository appears stale" in score["reasons"]
+
+
 def test_report_handles_empty_scored_input() -> None:
     markdown = render_report([])
 
