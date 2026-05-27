@@ -5,7 +5,10 @@ import os
 import subprocess
 import sys
 import tomllib
+from email.message import Message
+from io import BytesIO
 from pathlib import Path
+from urllib.error import HTTPError
 
 import bounty_sieve
 from bounty_sieve.__main__ import main as cli_main
@@ -1825,6 +1828,46 @@ def test_search_preview_reports_import_and_validation_errors_as_argparse_errors(
     assert "bounty-sieve search-preview: error: opportunities[0].id is required" in (
         captured.err
     )
+    assert "Traceback" not in captured.err
+
+
+def test_search_preview_403_error_is_actionable_and_does_not_leak_secrets(
+    monkeypatch, capsys
+) -> None:
+    def fake_urlopen(request, timeout):
+        headers = Message()
+        headers["x-ratelimit-remaining"] = "0"
+        headers["x-ratelimit-reset"] = "1779883200"
+        raise HTTPError(
+            request.full_url,
+            403,
+            "Forbidden",
+            headers,
+            BytesIO(b'{"message":"secret-body-value should not leak"}'),
+        )
+
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    monkeypatch.setattr("bounty_sieve.github_importer.urlopen", fake_urlopen)
+
+    try:
+        cli_main(["search-preview", "--query", 'label:"good first issue" bounty'])
+    except SystemExit as exc:
+        assert exc.code == 2
+    else:
+        raise AssertionError("expected argparse SystemExit")
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert (
+        "bounty-sieve search-preview: error: GitHub fetch failed with HTTP 403 "
+        "(rate limited or forbidden)"
+    ) in captured.err
+    assert "GITHUB_TOKEN set: no" in captured.err
+    assert "GitHub rate limit remaining: 0" in captured.err
+    assert "GitHub rate limit resets at: 2026-05-27T12:00:00Z" in captured.err
+    assert "narrow --query/--limit" in captured.err
+    assert "set GITHUB_TOKEN for higher rate limits" in captured.err
+    assert "secret-body-value" not in captured.err
     assert "Traceback" not in captured.err
 
 

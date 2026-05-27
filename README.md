@@ -135,6 +135,8 @@ python -m bounty_sieve search-preview --query 'label:"good first issue" bounty' 
 
 Add `--repo-health` to `search-preview` or `discover --source github-search` to fetch compact read-only public repository metadata such as stars, open issues, archived status, and recent push/update activity. This is optional and uses `GITHUB_TOKEN` only for rate limiting when already set.
 
+If GitHub returns HTTP 403 for search, the error reports whether `GITHUB_TOKEN` is set, any available rate-limit reset time, and suggests retrying later, narrowing `--query`/`--limit`, or setting `GITHUB_TOKEN` for higher rate limits.
+
 For a newline-delimited URL file, use:
 
 ```bash

@@ -186,7 +186,7 @@ def _fetch_json(url: str) -> Any:
         with urlopen(request, timeout=SAFE_TIMEOUT_SECONDS) as response:
             return json.loads(response.read().decode("utf-8"))
     except HTTPError as exc:
-        raise GitHubImportError(f"GitHub fetch failed with HTTP {exc.code}") from exc
+        raise GitHubImportError(_format_http_error(exc, token_set=bool(token))) from exc
     except URLError as exc:
         raise GitHubImportError(f"GitHub fetch failed: {exc.reason}") from exc
     except TimeoutError as exc:
@@ -197,6 +197,52 @@ def _fetch_json(url: str) -> Any:
 
 def _api_url(path: str) -> str:
     return f"{GITHUB_API}{path}"
+
+
+def _format_http_error(exc: HTTPError, token_set: bool) -> str:
+    if exc.code not in {403, 429}:
+        return f"GitHub fetch failed with HTTP {exc.code}"
+
+    reason = "rate limited" if exc.code == 429 else "rate limited or forbidden"
+    details = [
+        f"GitHub fetch failed with HTTP {exc.code} ({reason})",
+        f"GITHUB_TOKEN set: {'yes' if token_set else 'no'}",
+    ]
+    remaining = _safe_http_header(exc, "x-ratelimit-remaining")
+    if remaining:
+        details.append(f"GitHub rate limit remaining: {remaining}")
+    reset_at = _rate_limit_reset_iso(_safe_http_header(exc, "x-ratelimit-reset"))
+    if reset_at:
+        details.append(f"GitHub rate limit resets at: {reset_at}")
+    details.append(
+        "Try again later, narrow --query/--limit, or set GITHUB_TOKEN for higher rate limits"
+    )
+    return ". ".join(details) + "."
+
+
+def _safe_http_header(exc: HTTPError, name: str) -> str | None:
+    headers = exc.headers
+    if not headers:
+        return None
+    for candidate in (name, name.lower(), name.title()):
+        value = headers.get(candidate)
+        if value is not None:
+            text = str(value).strip()
+            return text or None
+    return None
+
+
+def _rate_limit_reset_iso(raw_value: str | None) -> str | None:
+    if raw_value is None:
+        return None
+    try:
+        reset_epoch = int(raw_value)
+    except ValueError:
+        return None
+    try:
+        return datetime.fromtimestamp(reset_epoch, UTC).isoformat().replace("+00:00", "Z")
+    except (OverflowError, OSError, ValueError):
+        return None
 
 
 def _github_search_api_url(query: str, limit: int) -> str:

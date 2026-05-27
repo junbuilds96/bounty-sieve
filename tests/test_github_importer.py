@@ -1,12 +1,18 @@
 from __future__ import annotations
 
 import json
+from email.message import Message
+from io import BytesIO
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+from urllib.error import HTTPError
 from urllib.parse import parse_qs, urlparse
 
+import pytest
+
 from bounty_sieve.github_importer import (
+    GitHubImportError,
     GitHubIssueRef,
     github_issue_to_opportunity,
     import_github_search,
@@ -271,6 +277,62 @@ def test_github_search_repo_health_fetches_repo_metadata_once_per_repo(
     assert opportunities[0]["signals"]["repo_archived"] is True
     assert opportunities[1]["metadata"]["github"]["repo_health"] == health
     assert "secret-test-token" not in json.dumps(opportunities)
+
+
+def test_github_search_403_reports_rate_limit_context_without_secrets(
+    monkeypatch,
+) -> None:
+    reset_epoch = int(datetime(2026, 5, 27, 12, 0, tzinfo=UTC).timestamp())
+
+    def fake_urlopen(request, timeout):
+        headers = Message()
+        headers["x-ratelimit-remaining"] = "0"
+        headers["x-ratelimit-reset"] = str(reset_epoch)
+        raise HTTPError(
+            request.full_url,
+            403,
+            "Forbidden",
+            headers,
+            BytesIO(b'{"message":"token secret-test-token should not leak"}'),
+        )
+
+    monkeypatch.setenv("GITHUB_TOKEN", "secret-test-token")
+    monkeypatch.setattr("bounty_sieve.github_importer.urlopen", fake_urlopen)
+
+    with pytest.raises(GitHubImportError) as exc_info:
+        import_github_search('label:"good first issue" bounty', 10)
+
+    message = str(exc_info.value)
+    assert "GitHub fetch failed with HTTP 403 (rate limited or forbidden)" in message
+    assert "GITHUB_TOKEN set: yes" in message
+    assert "GitHub rate limit remaining: 0" in message
+    assert "GitHub rate limit resets at: 2026-05-27T12:00:00Z" in message
+    assert "Try again later" in message
+    assert "narrow --query/--limit" in message
+    assert "set GITHUB_TOKEN for higher rate limits" in message
+    assert "secret-test-token" not in message
+    assert "should not leak" not in message
+
+
+def test_github_fetch_keeps_generic_message_for_non_rate_limit_http_errors(
+    monkeypatch,
+) -> None:
+    def fake_urlopen(request, timeout):
+        raise HTTPError(
+            request.full_url,
+            404,
+            "Not Found",
+            {},
+            BytesIO(b'{"message":"not found"}'),
+        )
+
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    monkeypatch.setattr("bounty_sieve.github_importer.urlopen", fake_urlopen)
+
+    with pytest.raises(GitHubImportError) as exc_info:
+        import_github_search("bounty", 10)
+
+    assert str(exc_info.value) == "GitHub fetch failed with HTTP 404"
 
 
 def test_github_search_canonicalizes_output_url_from_repository_ref(monkeypatch) -> None:
