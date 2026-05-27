@@ -135,7 +135,7 @@ def github_issue_to_opportunity(
     comment_bodies = [str(comment.get("body") or "") for comment in comments]
     evidence = "\n".join([title, body, *labels, *comment_bodies])
     reward = _reward_from_text(evidence)
-    signals = _signals_from_issue(issue, labels, body, comment_bodies)
+    signals = _signals_from_issue(issue, labels, body, comments)
 
     return {
         "id": _issue_id(issue_ref),
@@ -459,8 +459,9 @@ def _signals_from_issue(
     issue: dict[str, Any],
     labels: list[str],
     body: str,
-    comment_bodies: list[str],
+    comments: list[dict[str, Any]],
 ) -> dict[str, Any]:
+    comment_bodies = [str(comment.get("body") or "") for comment in comments]
     text = "\n".join([str(issue.get("title") or ""), body, *labels, *comment_bodies])
     lower = text.lower()
     comments_count = _safe_int(issue.get("comments"))
@@ -494,6 +495,10 @@ def _signals_from_issue(
     )
     complexity = _complexity(lower)
     scope = _scope(lower, unsafe_secret or prompt_exfiltration or token_or_asset, complexity)
+    acceptance_criteria = _acceptance_criteria(body)
+    has_acceptance_criteria = bool(acceptance_criteria) or _has_acceptance_heading(text)
+    has_reproduction_steps = _has_reproduction_steps(body)
+    assigned = bool(issue.get("assignees"))
 
     return {
         "requires_secret_access": unsafe_secret,
@@ -501,13 +506,18 @@ def _signals_from_issue(
         "requires_token_or_unknown_asset": token_or_asset,
         "star_gated": star_gated,
         "duplicate_pr_swarm": duplicate_swarm,
+        "has_reproduction_steps": has_reproduction_steps,
+        "has_acceptance_criteria": has_acceptance_criteria,
+        "maintainer_engaged": _maintainer_engaged(comments),
+        "assigned": assigned,
+        "issue_state": _issue_state(issue),
         "clarity": _clarity(body, lower),
         "repo_activity": _repo_activity(issue),
-        "competition": _competition(comments_count, duplicate_swarm, issue),
+        "competition": _competition(comments_count, duplicate_swarm, assigned),
         "complexity": complexity,
         "tech": _tech(labels, lower),
         "scope": scope,
-        "acceptance_criteria": _acceptance_criteria(body),
+        "acceptance_criteria": acceptance_criteria,
     }
 
 
@@ -516,7 +526,17 @@ def _contains_any(text: str, needles: list[str]) -> bool:
 
 
 def _clarity(body: str, lower: str) -> str:
-    if _contains_any(lower, ["acceptance criteria", "expected behavior", "steps to reproduce", "definition of done"]):
+    if _contains_any(
+        lower,
+        [
+            "acceptance criteria",
+            "expected behavior",
+            "steps to reproduce",
+            "definition of done",
+            "reproduction",
+            "actual behavior",
+        ],
+    ) or re.search(r"\brepro\b", lower):
         return "high"
     if _contains_any(lower, ["fix this", "make better", "asap", "urgent"]) and len(body) < 400:
         return "low"
@@ -541,8 +561,8 @@ def _repo_activity(issue: dict[str, Any]) -> str:
     return "unknown"
 
 
-def _competition(comments_count: int, duplicate_swarm: bool, issue: dict[str, Any]) -> str:
-    if duplicate_swarm or comments_count >= 5 or issue.get("assignees"):
+def _competition(comments_count: int, duplicate_swarm: bool, assigned: bool) -> str:
+    if duplicate_swarm or comments_count >= 5 or assigned:
         return "high"
     if comments_count >= 2:
         return "medium"
@@ -615,6 +635,41 @@ def _acceptance_criteria(body: str) -> list[str]:
         elif capture and criteria:
             break
     return criteria[:5]
+
+
+def _has_acceptance_heading(text: str) -> bool:
+    return bool(
+        re.search(
+            r"(?im)^\s{0,3}(?:#+\s*)?(?:acceptance criteria|definition of done|expected behavior)\s*:?",
+            text,
+        )
+    )
+
+
+def _has_reproduction_steps(body: str) -> bool:
+    lower = body.lower()
+    return _contains_any(
+        lower,
+        ["steps to reproduce", "reproduction", "actual behavior", "expected behavior"],
+    ) or bool(
+        re.search(r"\brepro\b", lower)
+    )
+
+
+def _maintainer_engaged(comments: list[dict[str, Any]]) -> bool:
+    maintainer_associations = {"OWNER", "MEMBER", "COLLABORATOR"}
+    for comment in comments:
+        association = comment.get("author_association")
+        if isinstance(association, str) and association.upper() in maintainer_associations:
+            return True
+    return False
+
+
+def _issue_state(issue: dict[str, Any]) -> str:
+    state = issue.get("state")
+    if isinstance(state, str) and state.lower() in {"open", "closed"}:
+        return state.lower()
+    return "unknown"
 
 
 def _safe_int(value: Any) -> int:

@@ -326,7 +326,7 @@ Recommended fields:
 
 - `url`, `platform`, `repo`, and `labels`
 - `reward.amount`, `reward.currency`, and `reward.type`
-- `signals` for safety and triage: secret access, prompt exfiltration, wallet or unknown asset use, star gating, duplicate PR risk, clarity, repo activity, competition, complexity, tech, scope, and acceptance criteria
+- `signals` for safety and triage: secret access, prompt exfiltration, wallet or unknown asset use, star gating, duplicate PR risk, clarity, repo activity, competition, complexity, tech, scope, acceptance criteria, and GitHub issue readiness fields such as reproduction steps, maintainer engagement, assignment, and issue state
 
 Missing reward and signal fields default to conservative unknown values. Invalid field types fail with a clear CLI error instead of being silently ignored.
 

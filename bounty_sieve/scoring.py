@@ -66,6 +66,8 @@ def score_opportunity(opportunity: dict[str, Any]) -> dict[str, Any]:
     issue_clarity = ISSUE_CLARITY.get(signals.get("clarity"), ISSUE_CLARITY["unknown"])
     repo_activity = REPO_ACTIVITY.get(signals.get("repo_activity"), REPO_ACTIVITY["unknown"])
     competition_risk = COMPETITION_RISK.get(signals.get("competition"), COMPETITION_RISK["unknown"])
+    if signals.get("assigned"):
+        competition_risk = max(competition_risk, COMPETITION_RISK["high"])
     complexity_estimate = COMPLEXITY_ESTIMATE.get(
         signals.get("complexity"), COMPLEXITY_ESTIMATE["unknown"]
     )
@@ -145,6 +147,8 @@ def _reasons(
         reasons.append("reject: payment or eligibility is gated by repository starring")
     if signals.get("duplicate_pr_swarm"):
         reasons.append("watch: high duplicate PR competition risk")
+    if signals.get("assigned"):
+        reasons.append("watch: issue already has assignees")
     if signals.get("repo_archived"):
         reasons.append("watch: repository is archived")
     elif signals.get("repo_health_stale"):
@@ -155,8 +159,22 @@ def _reasons(
         reasons.append("watch: vague task boundaries or missing acceptance criteria")
     if payment_confidence >= 80:
         reasons.append("positive: fixed USD reward with credible payment signal")
+    acceptance_criteria = signals.get("acceptance_criteria")
+    has_acceptance = (
+        (isinstance(acceptance_criteria, list) and bool(acceptance_criteria))
+        or signals.get("has_acceptance_criteria")
+    )
     if issue_clarity >= 80:
-        reasons.append("positive: clear issue and acceptance criteria")
+        if has_acceptance:
+            reasons.append("positive: clear issue and acceptance criteria")
+        elif signals.get("has_reproduction_steps"):
+            reasons.append("positive: clear issue with reproduction details")
+        else:
+            reasons.append("positive: clear issue details")
+    elif has_acceptance or signals.get("has_reproduction_steps"):
+        reasons.append("positive: issue includes readiness details")
+    if signals.get("maintainer_engaged"):
+        reasons.append("positive: maintainer engagement is visible in comments")
     if tech_match >= 75:
         reasons.append("positive: strong match for Python/docs/test automation work")
     return reasons
@@ -216,6 +234,8 @@ def _actionability_signal(
     repo_health = _repo_health_metadata(opportunity)
 
     state = _string_value(github_metadata.get("state"))
+    if state not in {"open", "closed"}:
+        state = _string_value(signals.get("issue_state"))
     if state == "closed" or _string_value(github_metadata.get("closed_at")):
         timeliness_score = 0
         confidence_score = min(confidence_score, 30)
@@ -246,7 +266,7 @@ def _actionability_signal(
         reasons.append("confidence: GitHub issue update timestamp is present")
 
     assignee_count = _non_negative_int(github_metadata.get("assignee_count"))
-    if assignee_count and assignee_count > 0:
+    if signals.get("assigned") or (assignee_count and assignee_count > 0):
         timeliness_score -= 25
         confidence_score -= 5
         reasons.append("why now: issue already has assignees")
@@ -285,11 +305,22 @@ def _actionability_signal(
     if isinstance(acceptance_criteria, list) and acceptance_criteria:
         confidence_score += 10
         reasons.append("confidence: acceptance criteria are present")
+    elif signals.get("has_acceptance_criteria"):
+        confidence_score += 7
+        reasons.append("confidence: acceptance criteria heading is present")
     elif issue_clarity >= 80:
         reasons.append("confidence: issue clarity is high")
     elif issue_clarity < 50:
         confidence_score -= 10
         reasons.append("confidence: issue clarity is low")
+
+    if signals.get("has_reproduction_steps"):
+        confidence_score += 5
+        reasons.append("confidence: reproduction or behavior details are present")
+
+    if signals.get("maintainer_engaged"):
+        confidence_score += 5
+        reasons.append("confidence: maintainer engagement is visible")
 
     if payment_confidence >= 80:
         reasons.append("confidence: fixed USD reward has a strong payment signal")

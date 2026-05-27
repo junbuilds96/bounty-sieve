@@ -14,6 +14,10 @@ BOOLEAN_SIGNAL_FIELDS = {
     "requires_token_or_unknown_asset",
     "star_gated",
     "duplicate_pr_swarm",
+    "has_reproduction_steps",
+    "has_acceptance_criteria",
+    "maintainer_engaged",
+    "assigned",
 }
 
 ENUM_SIGNAL_FIELDS = {
@@ -22,6 +26,7 @@ ENUM_SIGNAL_FIELDS = {
     "competition": {"low", "medium", "high", "unknown"},
     "complexity": {"low", "medium", "high", "unknown"},
     "scope": {"tiny", "small", "large", "unsafe", "unknown"},
+    "issue_state": {"open", "closed", "unknown"},
 }
 
 REWARD_TYPES = {"fixed", "estimated", "conditional", "claimed", "unknown"}
@@ -32,12 +37,17 @@ DEFAULT_SIGNALS: dict[str, Any] = {
     "requires_token_or_unknown_asset": False,
     "star_gated": False,
     "duplicate_pr_swarm": False,
+    "has_reproduction_steps": False,
+    "has_acceptance_criteria": False,
+    "maintainer_engaged": False,
+    "assigned": False,
     "clarity": "unknown",
     "repo_activity": "unknown",
     "competition": "unknown",
     "complexity": "unknown",
     "tech": [],
     "scope": "unknown",
+    "issue_state": "unknown",
     "acceptance_criteria": [],
 }
 

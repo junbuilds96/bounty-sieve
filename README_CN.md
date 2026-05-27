@@ -270,7 +270,7 @@ bounty-sieve demo --out out/demo --html
 
 - `url`、`platform`、`repo` 和 `labels`
 - `reward.amount`、`reward.currency` 和 `reward.type`
-- `signals`：包括是否需要密钥、是否要求提示词外泄、是否涉及钱包或未知资产、是否点星门槛、是否重复 PR 竞争、清晰度、仓库活跃度、竞争、复杂度、技术栈、范围和验收标准
+- `signals`：包括是否需要密钥、是否要求提示词外泄、是否涉及钱包或未知资产、是否点星门槛、是否重复 PR 竞争、清晰度、仓库活跃度、竞争、复杂度、技术栈、范围、验收标准，以及 GitHub issue 就绪度字段（如复现步骤、维护者参与、是否已分配和 issue 状态）
 
 缺失的 reward 和 signal 字段会使用保守的 unknown 默认值。字段类型错误会让 CLI 给出明确错误，而不是静默忽略。
 

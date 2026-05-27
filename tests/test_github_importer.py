@@ -54,7 +54,10 @@ def test_github_issue_fetch_uses_mocked_network_and_normalizes(monkeypatch) -> N
         "updated_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         "assignees": [],
     }
-    comments_payload = [{"body": "Looks unclaimed."}, {"body": "Scope is docs only."}]
+    comments_payload = [
+        {"body": "Looks unclaimed.", "author_association": "MEMBER"},
+        {"body": "Scope is docs only.", "author_association": "CONTRIBUTOR"},
+    ]
 
     def fake_urlopen(request, timeout):
         calls.append((request, timeout))
@@ -84,6 +87,11 @@ def test_github_issue_fetch_uses_mocked_network_and_normalizes(monkeypatch) -> N
         "README shows one command users can run",
         "Example output is included",
     ]
+    assert opportunity["signals"]["has_acceptance_criteria"] is True
+    assert opportunity["signals"]["has_reproduction_steps"] is False
+    assert opportunity["signals"]["maintainer_engaged"] is True
+    assert opportunity["signals"]["assigned"] is False
+    assert opportunity["signals"]["issue_state"] == "open"
 
 
 def test_github_issue_fetch_ignores_malicious_payload_comments_url(monkeypatch) -> None:
@@ -387,6 +395,47 @@ def test_github_issue_parser_flags_unsafe_and_competitive_signals() -> None:
     assert opportunity["signals"]["duplicate_pr_swarm"] is True
     assert opportunity["signals"]["competition"] == "high"
     assert opportunity["signals"]["scope"] == "unsafe"
+
+
+def test_github_issue_parser_derives_issue_readiness_signals() -> None:
+    opportunity = github_issue_to_opportunity(
+        "https://github.com/example/widgets/issues/88",
+        GitHubIssueRef(owner="example", repo="widgets", number=88),
+        {
+            "title": "Fix CLI output regression",
+            "body": (
+                "The CLI prints duplicate rows.\n\n"
+                "Steps to reproduce\n"
+                "1. Run bounty-sieve demo\n\n"
+                "Actual behavior\n"
+                "Rows appear twice.\n\n"
+                "Expected behavior\n"
+                "Each opportunity appears once.\n"
+            ),
+            "html_url": "https://github.com/example/widgets/issues/88",
+            "labels": [{"name": "bug"}, {"name": "cli"}],
+            "state": "open",
+            "comments": 1,
+            "updated_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+            "assignees": [{"login": "maintainer"}],
+        },
+        [
+            {
+                "body": "Confirmed, a focused fix is welcome.",
+                "author_association": "COLLABORATOR",
+            }
+        ],
+    )
+
+    signals = opportunity["signals"]
+    assert signals["acceptance_criteria"] == []
+    assert signals["has_acceptance_criteria"] is True
+    assert signals["has_reproduction_steps"] is True
+    assert signals["maintainer_engaged"] is True
+    assert signals["assigned"] is True
+    assert signals["issue_state"] == "open"
+    assert signals["clarity"] == "high"
+    assert signals["competition"] == "high"
 
 
 def test_url_list_importer_skips_unsupported_urls_without_crashing(

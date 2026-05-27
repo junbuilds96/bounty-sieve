@@ -36,6 +36,10 @@ def test_scoring_rejects_secret_access_even_with_other_positive_signals() -> Non
             "reward": {"amount": 1000, "currency": "USD", "type": "fixed"},
             "signals": {
                 "requires_secret_access": True,
+                "has_acceptance_criteria": True,
+                "has_reproduction_steps": True,
+                "maintainer_engaged": True,
+                "issue_state": "open",
                 "clarity": "high",
                 "repo_activity": "active",
                 "competition": "low",
@@ -49,6 +53,8 @@ def test_scoring_rejects_secret_access_even_with_other_positive_signals() -> Non
     score = scored["score"]
     assert score["recommendation"] == "reject"
     assert score["roi_score"] <= 20
+    assert score["actionability"]["label"] == "low"
+    assert score["actionability"]["confidence_score"] <= 20
     assert "reject: requires secret, credential, wallet, or private access" in score["reasons"]
 
 
@@ -117,6 +123,42 @@ def test_actionability_uses_github_and_repo_health_metadata_deterministically() 
     assert "why now: issue updated within 14 days" in first["reasons"]
     assert "why now: repository pushed within 180 days" in first["reasons"]
     assert "confidence: acceptance criteria are present" in first["reasons"]
+
+
+def test_readiness_signals_improve_reasons_without_hiding_assignment_risk() -> None:
+    scored = score_opportunity(
+        {
+            "id": "github-example-app-77",
+            "title": "Fix CLI regression",
+            "reward": {"amount": 200, "currency": "USD", "type": "fixed"},
+            "signals": {
+                "clarity": "high",
+                "repo_activity": "active",
+                "competition": "low",
+                "complexity": "low",
+                "scope": "tiny",
+                "tech": ["python", "pytest"],
+                "has_acceptance_criteria": True,
+                "has_reproduction_steps": True,
+                "maintainer_engaged": True,
+                "assigned": True,
+                "issue_state": "open",
+                "acceptance_criteria": [],
+            },
+        }
+    )
+
+    score = scored["score"]
+    actionability = score["actionability"]
+    assert score["competition_risk"] == 85
+    assert score["recommendation"] == "watch"
+    assert "watch: issue already has assignees" in score["reasons"]
+    assert "positive: maintainer engagement is visible in comments" in score["reasons"]
+    assert "why now: GitHub issue is open" in actionability["reasons"]
+    assert "why now: issue already has assignees" in actionability["reasons"]
+    assert "confidence: acceptance criteria heading is present" in actionability["reasons"]
+    assert "confidence: reproduction or behavior details are present" in actionability["reasons"]
+    assert "confidence: maintainer engagement is visible" in actionability["reasons"]
 
 
 def test_actionability_marks_closed_or_archived_items_low() -> None:
